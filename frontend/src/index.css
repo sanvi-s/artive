@@ -171,6 +171,47 @@ All colors MUST be HSL.
       63% 97%, 58% 94%, 53% 96%, 48% 93%, 43% 95%, 38% 92%, 33% 94%, 
       28% 91%, 23% 93%, 18% 90%, 13% 92%, 8% 89%, 3% 91%, 1% 88%, 0% 85%
     );
+    position: relative;
+    overflow: hidden;
+    /* Light mode subtle grey fill for visibility */
+    background-color: rgba(0,0,0,0.06);
+    border: 1px solid rgba(0,0,0,0.10);
+  }
+  .dark .torn-edge {
+    /* Dark mode subtle translucent white */
+    background-color: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.10);
+  }
+  .torn-edge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    /* Deckle highlight + shadow to suggest fibers */
+    background: linear-gradient(to bottom, rgba(255,255,255,0.35), rgba(255,255,255,0.0) 40%),
+                linear-gradient(to top, rgba(255,255,255,0.25), rgba(255,255,255,0.0) 40%);
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 8px 14px rgba(10,10,10,0.10));
+    z-index: 1;
+  }
+  .torn-edge::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    pointer-events: none;
+    background-image: url('/assets/textures/paper-grain-1.png');
+    background-size: 280px auto;
+    opacity: 0.18;
+    mix-blend-mode: multiply;
+    /* Add a mask that uses the torn SVG for a more organic edge */
+    -webkit-mask-image: url('/assets/masks/torn-edge.svg');
+    mask-image: url('/assets/masks/torn-edge.svg');
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: cover;
+    mask-size: cover;
+    -webkit-mask-position: center;
+    mask-position: center;
   }
   
   .torn-edge-soft {
@@ -182,6 +223,47 @@ All colors MUST be HSL.
       60% 91%, 55% 94%, 50% 92%, 45% 95%, 40% 93%, 35% 96%, 30% 94%, 
       25% 97%, 20% 95%, 15% 98%, 10% 96%, 5% 99%, 2% 97%, 0% 50%
     );
+    position: relative;
+    overflow: hidden;
+    background-color: rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.08);
+  }
+  .dark .torn-edge-soft {
+    background-color: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.09);
+  }
+
+  /* Tone down grain overlay in dark mode for subtler feel */
+  .dark .torn-edge::after { opacity: 0.10; }
+  .dark .torn-edge-soft::after { opacity: 0.08; }
+  .torn-edge-soft::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.25), rgba(255,255,255,0.0) 40%),
+                linear-gradient(to top, rgba(255,255,255,0.18), rgba(255,255,255,0.0) 40%);
+    mix-blend-mode: screen;
+    filter: drop-shadow(0 6px 12px rgba(10,10,10,0.08));
+    z-index: 1;
+  }
+  .torn-edge-soft::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    pointer-events: none;
+    background-image: url('/assets/textures/paper-grain-1.png');
+    background-size: 300px auto;
+    opacity: 0.14;
+    mix-blend-mode: multiply;
+    -webkit-mask-image: url('/assets/masks/torn-edge.svg');
+    mask-image: url('/assets/masks/torn-edge.svg');
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: cover;
+    mask-size: cover;
+    -webkit-mask-position: center;
+    mask-position: center;
   }
   
   /* Ink ripple animation */
@@ -222,6 +304,22 @@ All colors MUST be HSL.
       stroke-dashoffset: 0;
       opacity: 0.35;
     }
+  }
+  /* Ambient float particles for Forklore */
+  @keyframes float0 {
+    0% { transform: translateY(0) translateX(0); opacity: 0.6; }
+    50% { transform: translateY(-8px) translateX(3px); opacity: 0.9; }
+    100% { transform: translateY(0) translateX(0); opacity: 0.6; }
+  }
+  @keyframes float1 {
+    0% { transform: translateY(0) translateX(0); opacity: 0.4; }
+    50% { transform: translateY(-6px) translateX(-2px); opacity: 0.8; }
+    100% { transform: translateY(0) translateX(0); opacity: 0.4; }
+  }
+  @keyframes float2 {
+    0% { transform: translateY(0) translateX(0); opacity: 0.5; }
+    50% { transform: translateY(-10px) translateX(1px); opacity: 0.85; }
+    100% { transform: translateY(0) translateX(0); opacity: 0.5; }
   }
   
   /* Fade in with organic motion */

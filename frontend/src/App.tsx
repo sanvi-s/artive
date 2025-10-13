@@ -24,6 +24,8 @@ const AppContent = () => {
       <Route path="/auth" element={<Auth />} />
       <Route path="/explore" element={<Explore />} />
       <Route path="/fork/:id" element={<ForkEditor />} />
+      <Route path="/forklore" element={<LineageTree />} />
+      {/* Legacy redirect */}
       <Route path="/lineage" element={<LineageTree />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/about" element={<About />} />

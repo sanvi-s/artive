@@ -151,8 +151,8 @@ const Profile = () => {
               <GitFork className="h-5 w-5 text-muted-foreground" />
               <div className="w-10 h-10 rounded-full bg-accent-3 flex items-center justify-center text-white text-sm">C</div>
             </div>
-            <Link to="/lineage">
-              <Button variant="outline">View Full Lineage</Button>
+            <Link to="/forklore">
+              <Button variant="outline">View Forklore</Button>
             </Link>
           </div>
         </section>

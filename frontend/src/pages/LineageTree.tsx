@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
 import { ArrowLeft, Layout, Filter, SlidersHorizontal, Download, Undo2, Redo2 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 
 interface Node {
   id: string;
@@ -210,6 +210,10 @@ const LineageTree = () => {
   const [depth, setDepth] = useState(4);
   const [zoom, setZoom] = useState(1);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+  const [taglineDraft, setTaglineDraft] = useState<string>("");
+  const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const connections = [
@@ -238,7 +242,95 @@ const LineageTree = () => {
   ];
 
   const handleNodeClick = (node: Node) => {
-    setSelectedNode(node);
+    // Expand this node to emphasize its child branches and scale the petal
+    setExpandedNodeId(prev => prev === node.id ? null : node.id);
+  };
+
+  // Clear any previously saved tagline and avoid persistence going forward
+  useEffect(() => {
+    try { localStorage.removeItem("forkloreTagline"); } catch {}
+  }, []);
+
+  // Compute a depth level for styling (1 = earliest, 4 = latest)
+  const nodeLevelByY = (y: number) => {
+    if (y <= 140) return 1;
+    if (y <= 210) return 2;
+    if (y <= 310) return 3;
+    if (y <= 410) return 4;
+    return 5;
+  };
+
+  // Pink gradient shades per generation (light vs dark aware)
+  const pinkByLevel = (level: number) => {
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    const paletteLight = [
+      "hsl(345 62% 96%)",
+      "hsl(345 70% 88%)",
+      "hsl(345 78% 78%)",
+      "hsl(345 82% 66%)",
+      "hsl(345 85% 56%)",
+    ];
+    const paletteDark = [
+      "hsl(345 72% 82%)",
+      "hsl(345 78% 70%)",
+      "hsl(345 82% 62%)",
+      "hsl(345 86% 54%)",
+      "hsl(345 90% 48%)",
+    ];
+    const idx = Math.max(1, Math.min(level, 5)) - 1;
+    return (isDark ? paletteDark : paletteLight)[idx];
+  };
+
+  // Build an organic curved branch path between two points
+  const makeBranchPath = (x1: number, y1: number, x2: number, y2: number) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const cx1 = x1 + dx * 0.25 + (dy > 0 ? -20 : 20);
+    const cy1 = y1 + dy * 0.35 + 14;
+    const cx2 = x1 + dx * 0.75 + (dy > 0 ? 20 : -20);
+    const cy2 = y1 + dy * 0.65 - 14;
+    return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+  };
+
+  // Build a petal path centered at (cx, cy)
+  const makePetalPath = (cx: number, cy: number, size: number, rotationDeg: number) => {
+    const w = size * 1.2;
+    const h = size * 2;
+    // Vertical petal pointing up before rotation
+    const p1x = cx, p1y = cy - h * 0.5; // tip
+    const p2x = cx + w * 0.5, p2y = cy; // right mid
+    const p3x = cx, p3y = cy + h * 0.5; // bottom
+    const p4x = cx - w * 0.5, p4y = cy; // left mid
+
+    const path = `M ${p1x} ${p1y} C ${cx + w * 0.45} ${cy - h * 0.25}, ${cx + w * 0.55} ${cy + h * 0.25}, ${p3x} ${p3y} C ${cx - w * 0.55} ${cy + h * 0.25}, ${cx - w * 0.45} ${cy - h * 0.25}, ${p1x} ${p1y} Z`;
+    return { d: path, transform: `rotate(${rotationDeg} ${cx} ${cy})` };
+  };
+
+  // Precompute gradients for nodes
+  const gradients = useMemo(() => {
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    return sampleNodes.map((n) => {
+      const level = nodeLevelByY(n.y);
+      const deep = pinkByLevel(level);
+      const light = isDark ? "hsl(345 60% 88%)" : "hsl(345 45% 98%)";
+      return { id: `petal-grad-${n.id}` , light, deep };
+    });
+  }, []);
+
+  // Specific palette per requirements (hex)
+  const levelHexColor = (level: number) => {
+    if (level <= 1) return '#f8d7de';
+    if (level === 2) return '#f2a1b8';
+    if (level === 3) return '#e66b96';
+    return '#c83b78';
+  };
+
+  const darkerHex = (hex: string, amount: number) => {
+    const h = hex.replace('#','');
+    const r = Math.max(0, parseInt(h.substring(0,2),16) - amount);
+    const g = Math.max(0, parseInt(h.substring(2,4),16) - amount);
+    const b = Math.max(0, parseInt(h.substring(4,6),16) - amount);
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
   };
 
   return (
@@ -248,9 +340,47 @@ const LineageTree = () => {
       {/* Navbar */}
       <Navbar />
       
+      {/* Page torn-edge frame */}
+      <div className="pointer-events-none fixed inset-2 z-10 rounded-lg torn-edge" style={{ outline: "1px solid hsl(var(--border))", outlineOffset: "-6px" }} />
 
+      {/* Tagline: FORKLORE — left-aligned, no background; white in dark mode */}
+      <div className="absolute left-4" style={{ top: 'calc(4rem + 8px)', zIndex: 20, maxWidth: 560 }}>
+        <div className="px-2 py-1 flex flex-col items-start text-left gap-2">
+          <h1 className="font-display text-xl tracking-tight dark:text-white">forklore.</h1>
+          <div className="font-display text-[1rem]" style={{ color: '#b35e78' }}>
+            your seed, their forklore-
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="relative" style={{ minWidth: 200 }}>
+              {/* visible as a long line; text invisible but caret visible */}
+              <input
+                type="text"
+                value={taglineDraft}
+                onChange={(e) => setTaglineDraft(e.target.value.toLowerCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => { setIsInputFocused(false); }}
+                aria-label="your forklore line"
+                placeholder={(taglineDraft.length === 0) ? "complete it for us?" : ""}
+                className="outline-none bg-transparent"
+                style={{
+                  width: '100%',
+                  color: '#b35e78',
+                  caretColor: '#b35e78',
+                  borderBottom: '1px solid rgba(179,94,120,0.5)',
+                  padding: '2px 0',
+                  letterSpacing: '0.02em'
+                }}
+              />
+            </div>
+          </div>
+          <div className="italic" style={{ fontSize: '0.80rem', color: '#d8a3b5', opacity: 0.8 }}>
+            yeah, even we couldn’t finish ours ;)
+          </div>
+        </div>
+      </div>
       {/* Top Controls */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-card/80 backdrop-blur-md p-2 rounded-lg torn-edge-soft shadow-paper">
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 p-2 rounded-lg torn-edge-soft shadow-paper dark:[background:rgba(20,20,25,0.85)]">
         <Link to="/">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
@@ -280,7 +410,7 @@ const LineageTree = () => {
       </div>
 
       {/* Left Sidebar Controls */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
         <Link to="/explore">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -290,7 +420,7 @@ const LineageTree = () => {
       </div>
 
       {/* Right Sidebar Controls */}
-      <div className="absolute top-4 right-4 z-10 bg-card/90 backdrop-blur-paper rounded-lg p-4 space-y-3 torn-edge">
+      <div className="absolute top-4 right-4 z-20 rounded-lg p-4 space-y-3 torn-edge dark:[background:rgba(20,20,25,0.85)]">
         <div>
           <label className="text-xs font-medium mb-2 block">Layout</label>
           <div className="flex gap-1">
@@ -359,7 +489,41 @@ const LineageTree = () => {
       </div>
 
       {/* Lineage Graph Area */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden pt-8">
+        {/* Light mode subtle radial background */}
+        <div className="pointer-events-none absolute inset-0 block dark:hidden" style={{
+          background: 'radial-gradient(800px 500px at 50% 30%, rgba(255,240,242,0.55), transparent 70%)',
+          zIndex: 0
+        }} />
+        {/* Dark-mode background gradient + noise + radial focus */}
+        <div className="pointer-events-none absolute inset-0 hidden dark:block" style={{
+          background: 'linear-gradient(180deg, #1b1b1b 0%, #2f2f3a 100%)',
+          zIndex: 0
+        }} />
+        <div className="pointer-events-none absolute inset-0 hidden dark:block mix-blend-soft-light" style={{
+          backgroundImage: `url(/assets/textures/paper-grain-1.png)`,
+          backgroundSize: '320px auto',
+          opacity: 0.06,
+          zIndex: 0
+        }} />
+        <div className="pointer-events-none absolute inset-0 hidden dark:block" style={{
+          background: 'radial-gradient(700px 420px at 50% 28%, rgba(255,255,255,0.055), transparent 70%)',
+          zIndex: 0
+        }} />
+        {/* Ambient particles (dark only) */}
+        <div className="pointer-events-none absolute inset-0 hidden dark:block" style={{ zIndex: 0 }}>
+          {[...Array(20)].map((_, i) => (
+            <div key={i} className="absolute rounded-full" style={{
+              left: `${(i*37)%100}%`,
+              top: `${(i*19)%100}%`,
+              width: 2,
+              height: 2,
+              background: 'rgba(255, 143, 199, 0.35)',
+              filter: 'blur(0.5px)',
+              animation: `float${i%3} 9s ease-in-out ${i}s infinite`
+            }} />
+          ))}
+        </div>
         <svg
           ref={svgRef}
           width="100%"
@@ -368,166 +532,161 @@ const LineageTree = () => {
           viewBox="0 0 1000 600"
           style={{ transform: `scale(${zoom})` }}
         >
-          {/* Connections */}
+          {/* Definitions for gradients and stroke styles */}
+          <defs>
+            {gradients.map(g => (
+              <radialGradient key={g.id} id={g.id} cx="50%" cy="50%" r="60%">
+                <stop offset="0%" stopColor={g.light} />
+                <stop offset="100%" stopColor={g.deep} />
+              </radialGradient>
+            ))}
+            <filter id="roughen" x="-5%" y="-5%" width="110%" height="110%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.6" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+            <filter id="petalGlowLight" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            {/* Neon hover glow */}
+            <filter id="petalNeon" x="-80%" y="-80%" width="260%" height="260%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#ff8fc7" floodOpacity="0.8" />
+            </filter>
+            {/* Branch jitter/texture */}
+            <filter id="branchRough" x="-10%" y="-10%" width="120%" height="120%">
+              <feTurbulence baseFrequency="0.9" numOctaves="1" seed="2" type="fractalNoise" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.5" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
+
+          {/* Organic Branch Connections */}
           {connections.map((conn, index) => {
             const fromNode = sampleNodes.find(n => n.id === conn.from);
             const toNode = sampleNodes.find(n => n.id === conn.to);
             if (!fromNode || !toNode) return null;
 
-            // Determine connection style based on levels
-            const isOriginalToFirst = fromNode.type === "original";
-            const isFirstToSecond = fromNode.y >= 150 && fromNode.y <= 200 && toNode.y >= 200 && toNode.y <= 300;
-            const isSecondToThird = fromNode.y >= 200 && fromNode.y <= 300 && toNode.y >= 300 && toNode.y <= 400;
-            const isThirdToFourth = fromNode.y >= 300 && fromNode.y <= 400 && toNode.y >= 400;
+            const toLevel = nodeLevelByY(toNode.y);
+            const fromLevel = nodeLevelByY(fromNode.y);
+            const startHex = levelHexColor(fromLevel);
+            const endHex = levelHexColor(toLevel);
+            const d = makeBranchPath(fromNode.x, fromNode.y, toNode.x, toNode.y);
 
-            let strokeColor, strokeWidth, strokeDasharray;
-            if (isOriginalToFirst) {
-              strokeColor = "hsl(var(--accent-1))"; // Blush rose / Golden smudge
-              strokeWidth = "3";
-              strokeDasharray = "8,4";
-            } else if (isFirstToSecond) {
-              strokeColor = "hsl(var(--accent-2))"; // Muted sage / Watercolor blue
-              strokeWidth = "2";
-              strokeDasharray = "6,3";
-            } else if (isSecondToThird) {
-              strokeColor = "hsl(var(--accent-3))"; // Washed lilac / Electric mauve
-              strokeWidth = "2";
-              strokeDasharray = "4,2";
-            } else {
-              strokeColor = "hsl(var(--accent-1))"; // Blush rose / Golden smudge
-              strokeWidth = "1";
-              strokeDasharray = "3,2";
-            }
+            const gradId = `branch-grad-${index}`;
+            const grad = (
+              <linearGradient key={gradId} id={gradId} x1={fromNode.x} y1={fromNode.y} x2={toNode.x} y2={toNode.y} gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor={startHex} stopOpacity="0.75" />
+                <stop offset="100%" stopColor={endHex} stopOpacity="0.95" />
+              </linearGradient>
+            );
 
+            // Animate growth for emphasized branches
+            const isEmphasized = expandedNodeId && (conn.from === expandedNodeId || conn.to === expandedNodeId);
+            const strokeW = isEmphasized ? 3 : 2.2;
             return (
-              <line
-                key={index}
-                x1={fromNode.x}
-                y1={fromNode.y}
-                x2={toNode.x}
-                y2={toNode.y}
-                stroke={strokeColor}
-                strokeWidth={strokeWidth}
-                strokeDasharray={strokeDasharray}
-                opacity="0.7"
-                className="animate-pulse"
-                style={{
-                  filter: "drop-shadow(0 0 3px rgba(0,0,0,0.1))"
-                }}
-              />
+              <g key={index} className={isEmphasized ? "animate-organic-fade-in" : undefined}>
+                <defs>{grad}</defs>
+                {/* halo */}
+                <path d={d} fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={strokeW + 1.6} strokeLinecap="round" strokeLinejoin="round" opacity={0.35} />
+                {/* base textured stroke */}
+                <path d={d} fill="none" stroke={`url(#${gradId})`} strokeWidth={strokeW + 0.6} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "url(#branchRough)" }} opacity={0.9} className="animate-[brush-reveal_2.4s_var(--ease-organic)]" strokeDasharray={600} strokeDashoffset={0} />
+                {/* tip accent to fake taper */}
+                <path d={d} fill="none" stroke={darkerHex(endHex, 20)} strokeWidth={strokeW - 0.6} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+              </g>
             );
           })}
 
-          {/* Nodes */}
+          {/* Petal Nodes */}
           {sampleNodes.map((node) => {
-            // Determine node level and styling based on position
-            const isOriginal = node.type === "original";
-            const isFirstLevel = node.y >= 150 && node.y <= 200;
-            const isSecondLevel = node.y >= 200 && node.y <= 300;
-            const isThirdLevel = node.y >= 300 && node.y <= 400;
-            const isFourthLevel = node.y >= 400;
-            
-            let nodeSize, strokeWidth, strokeColor, textSize;
-            if (isOriginal) {
-              nodeSize = 45;
-              strokeWidth = 4;
-              strokeColor = "hsl(var(--accent-1))"; // Blush rose / Golden smudge
-              textSize = "text-sm";
-            } else if (isFirstLevel) {
-              nodeSize = 35;
-              strokeWidth = 3;
-              strokeColor = "hsl(var(--accent-2))"; // Muted sage / Watercolor blue
-              textSize = "text-xs";
-            } else if (isSecondLevel) {
-              nodeSize = 28;
-              strokeWidth = 2;
-              strokeColor = "hsl(var(--accent-3))"; // Washed lilac / Electric mauve
-              textSize = "text-xs";
-            } else if (isThirdLevel) {
-              nodeSize = 22;
-              strokeWidth = 2;
-              strokeColor = "hsl(var(--accent-1))"; // Blush rose / Golden smudge
-              textSize = "text-xs";
-            } else {
-              nodeSize = 18;
-              strokeWidth = 1;
-              strokeColor = "hsl(var(--accent-2))"; // Muted sage / Watercolor blue
-              textSize = "text-xs";
-            }
+            const level = nodeLevelByY(node.y);
+            const size = node.type === "original" ? 46 : level === 2 ? 36 : level === 3 ? 30 : level >= 4 ? 24 : 20;
+            const rotation = node.type === "original" ? -6 : (node.x % 3) * 8 - 8; // slight organic tilt
+            const stroke = levelHexColor(level);
+            const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+            const { d, transform } = makePetalPath(node.x, node.y, size, rotation);
+
+            const isHovered = hoveredNodeId === node.id;
+            const isExpanded = expandedNodeId === node.id;
+            const scale = isExpanded ? 1.08 : isHovered ? 1.03 : 1;
 
             return (
-              <g key={node.id}>
-                {/* Node background with gradient */}
-                <defs>
-                  <radialGradient id={`gradient-${node.id}`} cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="rgba(255, 255, 255, 0.9)" />
-                    <stop offset="100%" stopColor="rgba(255, 255, 255, 0.7)" />
-                  </radialGradient>
-                </defs>
-                
-                <circle
-                  cx={node.x}
-                  cy={node.y}
-                  r={nodeSize}
-                  fill={`url(#gradient-${node.id})`}
-                  stroke={strokeColor}
-                  strokeWidth={strokeWidth}
-                  className="cursor-pointer hover:stroke-2 transition-all drop-shadow-lg"
-                  onClick={() => handleNodeClick(node)}
+              <g key={node.id} className="cursor-pointer" onClick={() => handleNodeClick(node)} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId(null)}>
+                {/* Outer contrast outline */}
+                <path d={d} transform={transform} fill="none" stroke={isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)"} strokeWidth={node.type === "original" ? 4.2 : 3.2} opacity={0.22} />
+                <path
+                  d={d}
+                  transform={`${transform} scale(${scale})`}
+                  fill={`url(#petal-grad-${node.id})`}
+                  stroke={stroke}
+                  strokeWidth={node.type === "original" ? 3 : 2.2}
+                  style={{ filter: `url(#roughen) ${isHovered ? 'url(#petalNeon)' : ''} drop-shadow(0 6px 16px rgba(0,0,0,0.15))` }}
                 />
-                
-                {/* Fork count badge for nodes with forks */}
-                {node.forks > 0 && (
-                  <circle
-                    cx={node.x + nodeSize - 8}
-                    cy={node.y - nodeSize + 8}
-                    r="12"
-                    fill={strokeColor}
-                    className="cursor-pointer"
-                    onClick={() => handleNodeClick(node)}
-                  />
-                )}
-                {node.forks > 0 && (
-                  <text
-                    x={node.x + nodeSize - 8}
-                    y={node.y - nodeSize + 12}
-                    textAnchor="middle"
-                    className="text-xs fill-white font-bold cursor-pointer"
-                    onClick={() => handleNodeClick(node)}
-                  >
-                    {node.forks}
-                  </text>
-                )}
-                
-                <image
-                  href={node.image}
-                  x={node.x - nodeSize + 5}
-                  y={node.y - nodeSize + 5}
-                  width={nodeSize * 2 - 10}
-                  height={nodeSize * 2 - 10}
-                  clipPath={`circle(${nodeSize - 5}px at ${node.x}px ${node.y}px)`}
-                  className="cursor-pointer"
-                  onClick={() => handleNodeClick(node)}
+
+                {/* subtle inner vein */}
+                <path
+                  d={`M ${node.x} ${node.y - size * 0.6} Q ${node.x + 6} ${node.y}, ${node.x} ${node.y + size * 0.6}`}
+                  stroke={darkerHex(stroke, 60)}
+                  strokeWidth={0.7}
+                  opacity={0.45}
+                  fill="none"
+                  transform={`${transform} scale(${scale})`}
                 />
-                
-                <text
-                  x={node.x}
-                  y={node.y + nodeSize + 20}
-                  textAnchor="middle"
-                  className={`${textSize} fill-foreground font-medium cursor-pointer`}
-                  onClick={() => handleNodeClick(node)}
-                >
-                  {node.title.length > 15 ? node.title.substring(0, 15) + '...' : node.title}
-                </text>
-                <text
-                  x={node.x}
-                  y={node.y + nodeSize + 35}
-                  textAnchor="middle"
-                  className="text-xs fill-muted-foreground cursor-pointer"
-                  onClick={() => handleNodeClick(node)}
-                >
-                  by {node.author}
-                </text>
+
+                {/* Fork count badge with gradient and shadow */}
+                {node.forks > 0 && (
+                  <g>
+                    <defs>
+                      <linearGradient id={`badge-${node.id}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#ff7eb3" />
+                        <stop offset="100%" stopColor="#ff4da6" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx={node.x + size * 0.6} cy={node.y - size * 0.7} r="13" fill={isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.1)'} />
+                    <circle cx={node.x + size * 0.6} cy={node.y - size * 0.7} r="11" fill={`url(#badge-${node.id})`} style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))' }} />
+                    <text x={node.x + size * 0.6} y={node.y - size * 0.7 + 4} textAnchor="middle" className="text-xs fill-white font-bold">
+                      {node.forks}
+                    </text>
+                  </g>
+                )}
+
+                {/* Tooltip */}
+                {isHovered && (
+                  <g>
+                    <rect x={node.x + 18} y={node.y - size - 10} rx={8} ry={8} width={180} height={44} fill="#fff9f9" opacity={0.95} style={{ filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.12))' }} />
+                    <text x={node.x + 28} y={node.y - size + 6} className="text-[11px]" fill="#4a4a4a">{node.title}</text>
+                    <text x={node.x + 28} y={node.y - size + 20} className="text-[10px]" fill="#6b6b6b">by {node.author} • echoes {node.forks}</text>
+                  </g>
+                )}
+
+                {/* Labels - high-contrast pills for dark mode */}
+                {(() => {
+                  const title = node.title.length > 15 ? node.title.substring(0,15) + '...' : node.title;
+                  const titleWidth = Math.max(60, title.length * 7);
+                  const titleY = node.y + size + 20;
+                  const labelBg = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)';
+                  const labelStroke = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+                  return (
+                    <g>
+                      <rect x={node.x - titleWidth/2 - 8} y={titleY - 12} width={titleWidth + 16} height={18} rx={9} ry={9} fill={labelBg} stroke={labelStroke} />
+                      <text x={node.x} y={titleY + 2} textAnchor="middle" className="text-[11px] font-medium" fill={isDark ? '#f0f0f0' : 'hsl(var(--foreground))'}>{title}</text>
+                    </g>
+                  );
+                })()}
+                {(() => {
+                  const author = `by ${node.author}`;
+                  const authorWidth = Math.max(60, author.length * 6);
+                  const authorY = node.y + size + 38;
+                  const labelBg = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)';
+                  const labelStroke = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+                  return (
+                    <g>
+                      <rect x={node.x - authorWidth/2 - 8} y={authorY - 12} width={authorWidth + 16} height={18} rx={9} ry={9} fill={labelBg} stroke={labelStroke} />
+                      <text x={node.x} y={authorY + 2} textAnchor="middle" className="text-[10px]" fill={isDark ? '#f0f0f0' : 'hsl(var(--muted-foreground))'}>{author}</text>
+                    </g>
+                  );
+                })()}
               </g>
             );
           })}
