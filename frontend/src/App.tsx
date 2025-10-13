@@ -11,6 +11,7 @@ import LineageTree from "./pages/LineageTree";
 import Profile from "./pages/Profile";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import { RadialView, SpiralView, TimelineView } from "./pages/forklore";
 import { useKeyboardNavigation } from "./hooks/use-keyboard-navigation";
 
 const queryClient = new QueryClient();
@@ -25,8 +26,12 @@ const AppContent = () => {
       <Route path="/explore" element={<Explore />} />
       <Route path="/fork/:id" element={<ForkEditor />} />
       <Route path="/forklore" element={<LineageTree />} />
+      <Route path="/forklore/radial" element={<RadialView />} />
+      <Route path="/forklore/spiral" element={<SpiralView />} />
+      <Route path="/forklore/timeline" element={<TimelineView />} />
       {/* Legacy redirect */}
       <Route path="/lineage" element={<LineageTree />} />
+      <Route path="/lineage-tree" element={<LineageTree />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/about" element={<About />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
@@ -205,6 +205,7 @@ const sampleNodes: Node[] = [
 ];
 
 const LineageTree = () => {
+  const navigate = useNavigate();
   const [layout, setLayout] = useState<"radial" | "timeline" | "spiral" | "tree">("tree");
   const [filter, setFilter] = useState<"all" | "visual" | "poems" | "music" | "code">("all");
   const [depth, setDepth] = useState(4);
@@ -260,22 +261,22 @@ const LineageTree = () => {
     return 5;
   };
 
-  // Pink gradient shades per generation (light vs dark aware)
-  const pinkByLevel = (level: number) => {
+  // Green gradient shades per generation (light vs dark aware)
+  const greenByLevel = (level: number) => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     const paletteLight = [
-      "hsl(345 62% 96%)",
-      "hsl(345 70% 88%)",
-      "hsl(345 78% 78%)",
-      "hsl(345 82% 66%)",
-      "hsl(345 85% 56%)",
+      "hsl(120 40% 95%)",
+      "hsl(120 45% 85%)",
+      "hsl(120 50% 75%)",
+      "hsl(120 55% 65%)",
+      "hsl(120 60% 55%)",
     ];
     const paletteDark = [
-      "hsl(345 72% 82%)",
-      "hsl(345 78% 70%)",
-      "hsl(345 82% 62%)",
-      "hsl(345 86% 54%)",
-      "hsl(345 90% 48%)",
+      "#8fbc8f",
+      "#7ba87b",
+      "#6b946b",
+      "#5a805a",
+      "#4a6c4a",
     ];
     const idx = Math.max(1, Math.min(level, 5)) - 1;
     return (isDark ? paletteDark : paletteLight)[idx];
@@ -311,18 +312,26 @@ const LineageTree = () => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
     return sampleNodes.map((n) => {
       const level = nodeLevelByY(n.y);
-      const deep = pinkByLevel(level);
-      const light = isDark ? "hsl(345 60% 88%)" : "hsl(345 45% 98%)";
+      const deep = greenByLevel(level);
+      const light = isDark ? "#8fbc8f" : "hsl(120 30% 98%)";
       return { id: `petal-grad-${n.id}` , light, deep };
     });
   }, []);
 
-  // Specific palette per requirements (hex)
+  // Specific palette per requirements (hex) - Green theme
   const levelHexColor = (level: number) => {
-    if (level <= 1) return '#f8d7de';
-    if (level === 2) return '#f2a1b8';
-    if (level === 3) return '#e66b96';
-    return '#c83b78';
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    if (isDark) {
+      if (level <= 1) return '#8fbc8f';
+      if (level === 2) return '#7ba87b';
+      if (level === 3) return '#6b946b';
+      return '#5a805a';
+    } else {
+      if (level <= 1) return '#a8e6a3';
+      if (level === 2) return '#7dd87a';
+      if (level === 3) return '#52ca51';
+      return '#3fb83d';
+    }
   };
 
   const darkerHex = (hex: string, amount: number) => {
@@ -340,47 +349,25 @@ const LineageTree = () => {
       {/* Navbar */}
       <Navbar />
       
-      {/* Page torn-edge frame */}
-      <div className="pointer-events-none fixed inset-2 z-10 rounded-lg torn-edge" style={{ outline: "1px solid hsl(var(--border))", outlineOffset: "-6px" }} />
+      {/* Page frame - removed torn edges from bottom and right */}
+      <div className="pointer-events-none fixed top-2 left-2 z-10 rounded-lg" style={{ 
+        borderTop: "1px solid hsl(var(--border))", 
+        borderLeft: "1px solid hsl(var(--border))",
+        width: "calc(100% - 1rem)",
+        height: "calc(100% - 1rem)"
+      }} />
 
       {/* Tagline: FORKLORE — left-aligned, no background; white in dark mode */}
       <div className="absolute left-4" style={{ top: 'calc(4rem + 8px)', zIndex: 20, maxWidth: 560 }}>
         <div className="px-2 py-1 flex flex-col items-start text-left gap-2">
           <h1 className="font-display text-xl tracking-tight dark:text-white">forklore.</h1>
           <div className="font-display text-[1rem]" style={{ color: '#b35e78' }}>
-            your seed, their forklore-
-          </div>
-          <div className="flex items-center gap-3 mt-1">
-            <div className="relative" style={{ minWidth: 200 }}>
-              {/* visible as a long line; text invisible but caret visible */}
-              <input
-                type="text"
-                value={taglineDraft}
-                onChange={(e) => setTaglineDraft(e.target.value.toLowerCase())}
-                onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => { setIsInputFocused(false); }}
-                aria-label="your forklore line"
-                placeholder={(taglineDraft.length === 0) ? "complete it for us?" : ""}
-                className="outline-none bg-transparent"
-                style={{
-                  width: '100%',
-                  color: '#b35e78',
-                  caretColor: '#b35e78',
-                  borderBottom: '1px solid rgba(179,94,120,0.5)',
-                  padding: '2px 0',
-                  letterSpacing: '0.02em'
-                }}
-              />
-            </div>
-          </div>
-          <div className="italic" style={{ fontSize: '0.80rem', color: '#d8a3b5', opacity: 0.8 }}>
-            yeah, even we couldn’t finish ours ;)
+            your seed, their forklore.
           </div>
         </div>
       </div>
       {/* Top Controls */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 p-2 rounded-lg torn-edge-soft shadow-paper dark:[background:rgba(20,20,25,0.85)]">
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 p-2 rounded-lg shadow-paper dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)] bg-background/80 backdrop-blur-sm border border-border/20">
         <Link to="/">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
@@ -420,27 +407,50 @@ const LineageTree = () => {
       </div>
 
       {/* Right Sidebar Controls */}
-      <div className="absolute top-4 right-4 z-20 rounded-lg p-4 space-y-3 torn-edge dark:[background:rgba(20,20,25,0.85)]">
+      <div className="absolute top-16 right-4 z-20 rounded-lg p-4 space-y-3 dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)] bg-background/80 backdrop-blur-sm border border-border/20">
         <div>
-          <label className="text-xs font-medium mb-2 block">Layout</label>
+          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Layout</label>
           <div className="flex gap-1">
-            {(["radial", "timeline", "spiral", "tree"] as const).map((layoutType) => (
-              <Button
-                key={layoutType}
-                variant={layout === layoutType ? "hero" : "ghost"}
-                size="sm"
-                onClick={() => setLayout(layoutType)}
-                className="text-xs capitalize"
-              >
-                {layoutType}
-              </Button>
-            ))}
+            {(["radial", "timeline", "spiral", "tree"] as const).map((layoutType) => {
+              const isCurrentLayout = layout === layoutType;
+              const isTreeLayout = layoutType === "tree";
+              
+              return (
+                <Button
+                  key={layoutType}
+                  variant={isCurrentLayout ? "hero" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    if (isTreeLayout) {
+                      setLayout(layoutType);
+                    } else {
+                      // Navigate to specific Forklore view
+                      const routes = {
+                        radial: "/forklore/radial",
+                        timeline: "/forklore/timeline", 
+                        spiral: "/forklore/spiral"
+                      };
+                      navigate(routes[layoutType]);
+                    }
+                  }}
+                  className="text-xs capitalize"
+                  style={isCurrentLayout ? {
+                    background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+                    border: 'none',
+                    color: '#f2f2f2',
+                    boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+                  } : {}}
+                >
+                  {layoutType}
+                </Button>
+              );
+            })}
           </div>
         </div>
 
         <div>
-          <label className="text-xs font-medium mb-2 block">Tree Legend</label>
-          <div className="space-y-1 text-xs">
+          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Tree Legend</label>
+          <div className="space-y-1 text-xs text-muted-foreground dark:[color:#f3d9ea]">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full border-2 border-accent-1"></div>
               <span>Original Seed</span>
@@ -461,11 +471,11 @@ const LineageTree = () => {
         </div>
 
         <div>
-          <label className="text-xs font-medium mb-2 block">Filter</label>
+          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Filter</label>
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
-            className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs"
+            className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs dark:[background:rgba(60,60,65,0.8)] dark:[border:1px_solid_rgba(255,255,255,0.15)] dark:[color:#f3d9ea]"
           >
             <option value="all">All Types</option>
             <option value="visual">Visual</option>
@@ -476,7 +486,7 @@ const LineageTree = () => {
         </div>
 
         <div>
-          <label className="text-xs font-medium mb-2 block">Depth: {depth}</label>
+          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Depth: {depth}</label>
           <input
             type="range"
             min="1"
@@ -484,6 +494,13 @@ const LineageTree = () => {
             value={depth}
             onChange={(e) => setDepth(Number(e.target.value))}
             className="w-full"
+            style={{
+              background: 'linear-gradient(to right, #7dd87a, #52ca51)',
+              height: '6px',
+              borderRadius: '3px',
+              outline: 'none',
+              opacity: 0.8
+            }}
           />
         </div>
       </div>
@@ -497,30 +514,30 @@ const LineageTree = () => {
         }} />
         {/* Dark-mode background gradient + noise + radial focus */}
         <div className="pointer-events-none absolute inset-0 hidden dark:block" style={{
-          background: 'linear-gradient(180deg, #1b1b1b 0%, #2f2f3a 100%)',
+          background: 'linear-gradient(180deg, #4a4a4f 0%, #5a5a5f 100%)',
           zIndex: 0
         }} />
         <div className="pointer-events-none absolute inset-0 hidden dark:block mix-blend-soft-light" style={{
           backgroundImage: `url(/assets/textures/paper-grain-1.png)`,
           backgroundSize: '320px auto',
-          opacity: 0.06,
+          opacity: 0.08,
           zIndex: 0
         }} />
         <div className="pointer-events-none absolute inset-0 hidden dark:block" style={{
-          background: 'radial-gradient(700px 420px at 50% 28%, rgba(255,255,255,0.055), transparent 70%)',
+          background: 'radial-gradient(700px 420px at 50% 28%, rgba(143,188,143,0.06), transparent 70%)',
           zIndex: 0
         }} />
         {/* Ambient particles (dark only) */}
         <div className="pointer-events-none absolute inset-0 hidden dark:block" style={{ zIndex: 0 }}>
-          {[...Array(20)].map((_, i) => (
+          {[...Array(15)].map((_, i) => (
             <div key={i} className="absolute rounded-full" style={{
               left: `${(i*37)%100}%`,
               top: `${(i*19)%100}%`,
-              width: 2,
-              height: 2,
-              background: 'rgba(255, 143, 199, 0.35)',
-              filter: 'blur(0.5px)',
-              animation: `float${i%3} 9s ease-in-out ${i}s infinite`
+              width: 1.5,
+              height: 1.5,
+              background: 'rgba(143, 188, 143, 0.2)',
+              filter: 'blur(0.8px)',
+              animation: `float${i%3} 12s ease-in-out ${i}s infinite`
             }} />
           ))}
         </div>
@@ -584,16 +601,20 @@ const LineageTree = () => {
 
             // Animate growth for emphasized branches
             const isEmphasized = expandedNodeId && (conn.from === expandedNodeId || conn.to === expandedNodeId);
-            const strokeW = isEmphasized ? 3 : 2.2;
+            const strokeW = isEmphasized ? 3 : 1.2;
             return (
               <g key={index} className={isEmphasized ? "animate-organic-fade-in" : undefined}>
                 <defs>{grad}</defs>
                 {/* halo */}
-                <path d={d} fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={strokeW + 1.6} strokeLinecap="round" strokeLinejoin="round" opacity={0.35} />
+                <path d={d} fill="none" stroke="rgba(139,69,19,0.15)" strokeWidth={strokeW + 1.2} strokeLinecap="round" strokeLinejoin="round" opacity={0.4} />
                 {/* base textured stroke */}
-                <path d={d} fill="none" stroke={`url(#${gradId})`} strokeWidth={strokeW + 0.6} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "url(#branchRough)" }} opacity={0.9} className="animate-[brush-reveal_2.4s_var(--ease-organic)]" strokeDasharray={600} strokeDashoffset={0} />
+                <path d={d} fill="none" stroke="rgba(139,69,19,0.25)" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "url(#branchRough)" }} opacity={0.8} className="animate-[brush-reveal_2.4s_var(--ease-organic)]" strokeDasharray={600} strokeDashoffset={0} />
                 {/* tip accent to fake taper */}
-                <path d={d} fill="none" stroke={darkerHex(endHex, 20)} strokeWidth={strokeW - 0.6} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+                <path d={d} fill="none" stroke="rgba(139,69,19,0.35)" strokeWidth={0.8} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+                {/* enhanced glow for emphasized connections */}
+                {isEmphasized && (
+                  <path d={d} fill="none" stroke="rgba(139,69,19,0.6)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.8} style={{ filter: "blur(2px)" }} />
+                )}
               </g>
             );
           })}
@@ -609,19 +630,22 @@ const LineageTree = () => {
 
             const isHovered = hoveredNodeId === node.id;
             const isExpanded = expandedNodeId === node.id;
-            const scale = isExpanded ? 1.08 : isHovered ? 1.03 : 1;
+            const scale = isExpanded ? 1.08 : isHovered ? 1.06 : 1;
 
             return (
               <g key={node.id} className="cursor-pointer" onClick={() => handleNodeClick(node)} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId(null)}>
                 {/* Outer contrast outline */}
-                <path d={d} transform={transform} fill="none" stroke={isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)"} strokeWidth={node.type === "original" ? 4.2 : 3.2} opacity={0.22} />
+                <path d={d} transform={transform} fill="none" stroke={isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.6)"} strokeWidth={node.type === "original" ? 4.2 : 3.2} opacity={0.15} />
                 <path
                   d={d}
                   transform={`${transform} scale(${scale})`}
                   fill={`url(#petal-grad-${node.id})`}
                   stroke={stroke}
                   strokeWidth={node.type === "original" ? 3 : 2.2}
-                  style={{ filter: `url(#roughen) ${isHovered ? 'url(#petalNeon)' : ''} drop-shadow(0 6px 16px rgba(0,0,0,0.15))` }}
+                  style={{ 
+                    filter: isDark ? 'url(#roughen)' : `url(#roughen) ${isHovered ? 'url(#petalNeon)' : ''} drop-shadow(0 2px 6px rgba(120,200,120,0.15))`,
+                    boxShadow: isDark ? 'inset 0 1px 2px rgba(0,0,0,0.1)' : 'none'
+                  }}
                 />
 
                 {/* subtle inner vein */}
@@ -654,9 +678,9 @@ const LineageTree = () => {
                 {/* Tooltip */}
                 {isHovered && (
                   <g>
-                    <rect x={node.x + 18} y={node.y - size - 10} rx={8} ry={8} width={180} height={44} fill="#fff9f9" opacity={0.95} style={{ filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.12))' }} />
-                    <text x={node.x + 28} y={node.y - size + 6} className="text-[11px]" fill="#4a4a4a">{node.title}</text>
-                    <text x={node.x + 28} y={node.y - size + 20} className="text-[10px]" fill="#6b6b6b">by {node.author} • echoes {node.forks}</text>
+                    <rect x={node.x + 18} y={node.y - size - 10} rx={8} ry={8} width={180} height={44} fill={isDark ? "rgba(70, 70, 75, 0.8)" : "#fff9f9"} stroke={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.06)"} strokeWidth={1} style={{ filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.3)) backdrop-filter: blur(10px)' }} />
+                    <text x={node.x + 28} y={node.y - size + 6} className="text-[11px]" fill={isDark ? "#f6e7ef" : "#4a4a4a"} fontWeight="bold">{node.title}</text>
+                    <text x={node.x + 28} y={node.y - size + 20} className="text-[10px]" fill={isDark ? "#b8aabf" : "#6b6b6b"} fontStyle="italic">by {node.author} • echoes {node.forks}</text>
                   </g>
                 )}
 
@@ -665,12 +689,12 @@ const LineageTree = () => {
                   const title = node.title.length > 15 ? node.title.substring(0,15) + '...' : node.title;
                   const titleWidth = Math.max(60, title.length * 7);
                   const titleY = node.y + size + 20;
-                  const labelBg = isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)';
-                  const labelStroke = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+                  const labelBg = isDark ? 'rgba(60, 60, 65, 0.8)' : 'rgba(255,255,255,0.85)';
+                  const labelStroke = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.06)';
                   return (
                     <g>
                       <rect x={node.x - titleWidth/2 - 8} y={titleY - 12} width={titleWidth + 16} height={18} rx={9} ry={9} fill={labelBg} stroke={labelStroke} />
-                      <text x={node.x} y={titleY + 2} textAnchor="middle" className="text-[11px] font-medium" fill={isDark ? '#f0f0f0' : 'hsl(var(--foreground))'}>{title}</text>
+                      <text x={node.x} y={titleY + 2} textAnchor="middle" className="text-[11px] font-medium" fill={isDark ? '#f6e7ef' : 'hsl(var(--foreground))'}>{title}</text>
                     </g>
                   );
                 })()}
@@ -678,12 +702,12 @@ const LineageTree = () => {
                   const author = `by ${node.author}`;
                   const authorWidth = Math.max(60, author.length * 6);
                   const authorY = node.y + size + 38;
-                  const labelBg = isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.8)';
-                  const labelStroke = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+                  const labelBg = isDark ? 'rgba(60, 60, 65, 0.7)' : 'rgba(255,255,255,0.8)';
+                  const labelStroke = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.05)';
                   return (
                     <g>
                       <rect x={node.x - authorWidth/2 - 8} y={authorY - 12} width={authorWidth + 16} height={18} rx={9} ry={9} fill={labelBg} stroke={labelStroke} />
-                      <text x={node.x} y={authorY + 2} textAnchor="middle" className="text-[10px]" fill={isDark ? '#f0f0f0' : 'hsl(var(--muted-foreground))'}>{author}</text>
+                      <text x={node.x} y={authorY + 2} textAnchor="middle" className="text-[10px]" fill={isDark ? '#b8aabf' : 'hsl(var(--muted-foreground))'} fontStyle="italic">{author}</text>
                     </g>
                   );
                 })()}
@@ -695,8 +719,8 @@ const LineageTree = () => {
 
       {/* Node Preview Modal */}
       {selectedNode && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card p-6 rounded-lg torn-edge-soft shadow-paper max-w-md w-full">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-card p-6 rounded-lg shadow-paper max-w-md w-full dark:[background:rgba(60,60,65,0.9)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)]">
             <div className="flex items-center gap-4 mb-4">
               <img
                 src={selectedNode.image}
@@ -704,18 +728,31 @@ const LineageTree = () => {
                 className="w-12 h-12 rounded-full"
               />
               <div>
-                <h3 className="font-display font-semibold">{selectedNode.title}</h3>
-                <p className="text-sm text-muted-foreground">by {selectedNode.author}</p>
+                <h3 className="font-display font-semibold text-foreground dark:[color:#f2f2f2]">{selectedNode.title}</h3>
+                <p className="text-sm text-muted-foreground dark:[color:#aaa5b5]">by {selectedNode.author}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
+            <p className="text-sm mb-4 text-muted-foreground dark:[color:#aaa5b5]">
               {selectedNode.forks} forks • {selectedNode.date}
             </p>
             <div className="flex gap-2">
-              <Button variant="hero" size="sm" className="flex-1">
+              <Button 
+                size="sm" 
+                className="flex-1"
+                style={{
+                  background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+                  border: 'none',
+                  color: '#f2f2f2',
+                  boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+                }}
+              >
                 View Seed
               </Button>
-              <Button variant="outline" size="sm" className="flex-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex-1"
+              >
                 Fork
               </Button>
             </div>
@@ -733,9 +770,9 @@ const LineageTree = () => {
 
       {/* Tree Statistics */}
       <div className="fixed bottom-6 left-6 z-40">
-        <div className="bg-card/90 backdrop-blur-paper rounded-lg p-4 torn-edge shadow-paper">
-          <h3 className="text-sm font-semibold mb-2">Tree Statistics</h3>
-          <div className="space-y-1 text-xs text-muted-foreground">
+        <div className="bg-card/90 backdrop-blur-paper rounded-lg p-4 shadow-paper dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)]">
+          <h3 className="text-sm font-semibold mb-2 text-foreground dark:[color:#f2f2f2]">Tree Statistics</h3>
+          <div className="space-y-1 text-xs text-muted-foreground dark:[color:#aaa5b5]">
             <div>Total Nodes: {sampleNodes.length}</div>
             <div>Original Seeds: {sampleNodes.filter(n => n.type === "original").length}</div>
             <div>Total Forks: {sampleNodes.filter(n => n.type === "fork").length}</div>
@@ -747,7 +784,16 @@ const LineageTree = () => {
 
       {/* Export Button */}
       <div className="fixed bottom-6 right-6 z-40">
-        <Button variant="hero" size="sm">
+        <Button 
+          variant="hero"
+          size="sm"
+          style={{
+            background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+            border: 'none',
+            color: '#f2f2f2',
+            boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+          }}
+        >
           <Download className="h-4 w-4 mr-2" />
           Download Lineage
         </Button>

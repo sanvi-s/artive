@@ -5,100 +5,59 @@ import { Input } from "@/components/ui/input";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
 import { Search, SortAsc, Filter, Heart, Share2, Bookmark } from "lucide-react";
-import { SeedCard } from "@/components/SeedCard";
+import { UnifiedSeedCard } from "@/components/UnifiedSeedCard";
+import { SeedViewModal } from "@/components/SeedViewModal";
+import { allSeeds, categories, sortOptions } from "@/data/sampleSeeds";
+import { Seed } from "@/types/seed";
 
-// Sample data
-const categories = ["Poems", "Visual", "Music", "Code", "Random"];
-const sortOptions = ["New", "Trending", "Most Forked", "Oldest"];
-
-const allSeeds = [
-  {
-    id: "1",
-    image: "https://via.placeholder.com/300x200/E8C9B0/1E1B18?text=Watercolor+Dreams",
-    title: "Unfinished Watercolor Dreams",
-    author: "Priya K.",
-    time: "2h ago",
-    forks: 12,
-    category: "Visual",
-    trending: true,
-  },
-  {
-    id: "2", 
-    image: "https://via.placeholder.com/300x200/A3B9A5/1E1B18?text=Color+Studies",
-    title: "Color Studies",
-    author: "Ahmed M.",
-    time: "4h ago",
-    forks: 5,
-    category: "Visual",
-    trending: false,
-  },
-  {
-    id: "3",
-    image: "https://via.placeholder.com/300x200/D4C3DE/1E1B18?text=Dreams+in+Motion",
-    title: "Dreams in Motion",
-    author: "Meera S.",
-    time: "6h ago",
-    forks: 8,
-    category: "Visual",
-    trending: true,
-  },
-  {
-    id: "4",
-    image: "https://via.placeholder.com/300x200/E8C9B0/1E1B18?text=Poem+Fragment",
-    title: "Midnight Whispers",
-    author: "Ravi D.",
-    time: "1d ago",
-    forks: 3,
-    category: "Poems",
-    trending: false,
-  },
-  {
-    id: "5",
-    image: "https://via.placeholder.com/300x200/A3B9A5/1E1B18?text=Code+Snippet",
-    title: "Half-Built Algorithm",
-    author: "Sneha P.",
-    time: "2d ago",
-    forks: 15,
-    category: "Code",
-    trending: true,
-  },
-  {
-    id: "6",
-    image: "https://via.placeholder.com/300x200/D4C3DE/1E1B18?text=Music+Sketch",
-    title: "Melody Fragment",
-    author: "Kiran M.",
-    time: "3d ago",
-    forks: 7,
-    category: "Music",
-    trending: false,
-  },
-];
+// Use imported data
 
 const Explore = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSort, setSelectedSort] = useState("New");
+  const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Filter and sort seeds
   const displayedSeeds = allSeeds
     .filter((seed) => {
       const matchesSearch = seed.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           seed.author.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === "All" || seed.category === selectedCategory;
+                           seed.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           (seed.type === 'text' && seed.content.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesCategory = selectedCategory === "All" || 
+                             seed.category === selectedCategory ||
+                             (selectedCategory === "Text" && seed.type === 'text') ||
+                             (selectedCategory === "Visual" && seed.type === 'visual');
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
       switch (selectedSort) {
         case "Trending":
-          return b.forks - a.forks;
+          return (b.sparks + b.forks) - (a.sparks + a.forks);
         case "Most Forked":
           return b.forks - a.forks;
+        case "Most Sparked":
+          return b.sparks - a.sparks;
         case "Oldest":
-          return new Date(b.time).getTime() - new Date(a.time).getTime();
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         default:
-          return new Date(a.time).getTime() - new Date(b.time).getTime();
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
     });
+
+  const handleViewSeed = (seedId: string) => {
+    const seed = allSeeds.find(s => s.id === seedId);
+    if (seed) {
+      setSelectedSeed(seed);
+      setIsViewModalOpen(true);
+    }
+  };
+
+  const handleForkSeed = (seedId: string) => {
+    console.log('Forking seed:', seedId);
+    // Here you would typically handle the fork logic
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -174,15 +133,12 @@ const Explore = () => {
         {/* Masonry Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {displayedSeeds.map((seed) => (
-            <SeedCard
+            <UnifiedSeedCard
               key={seed.id}
-              id={seed.id}
-              image={seed.image}
-              title={seed.title}
-              author={seed.author}
-              time={seed.time}
-              forks={seed.forks}
+              seed={seed}
               className="torn-edge-soft"
+              onFork={handleForkSeed}
+              onView={handleViewSeed}
             />
           ))}
         </div>
@@ -201,6 +157,14 @@ const Explore = () => {
           </div>
         )}
       </main>
+
+      {/* Seed View Modal */}
+      <SeedViewModal
+        seed={selectedSeed}
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        onFork={handleForkSeed}
+      />
     </div>
   );
 };

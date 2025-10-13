@@ -1,61 +1,21 @@
 import { Button } from "@/components/ui/button";
-import { SeedCard } from "@/components/SeedCard";
+import { UnifiedSeedCard } from "@/components/UnifiedSeedCard";
 import { ShardCard } from "@/components/ShardCard";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
+import { PlantSeedModal } from "@/components/PlantSeedModal";
+import { SeedViewModal } from "@/components/SeedViewModal";
 import { Link } from "react-router-dom";
+import { allSeeds } from "@/data/sampleSeeds";
+import { SeedCreationData, Seed } from "@/types/seed";
+import { useState } from "react";
 import heroCollage from "@/assets/hero-collage.jpg";
 import seed1 from "@/assets/seed-1.jpg";
 import seed2 from "@/assets/seed-2.jpg";
-import seed3 from "@/assets/seed-3.jpg";
 import seed4 from "@/assets/seed-4.jpg";
-import seed5 from "@/assets/seed-5.jpg";
-import seed6 from "@/assets/seed-6.jpg";
 
-const seeds = [
-  {
-    image: seed1,
-    title: "Unfinished Watercolor Dreams",
-    author: "Priya K.",
-    time: "2h ago",
-    forks: 12,
-  },
-  {
-    image: seed2,
-    title: "Incomplete Urdu Verses",
-    author: "Ahmed M.",
-    time: "5h ago",
-    forks: 8,
-  },
-  {
-    image: seed3,
-    title: "Bharatanatyam in Motion",
-    author: "Meera S.",
-    time: "1d ago",
-    forks: 24,
-  },
-  {
-    image: seed4,
-    title: "Half-Stitched Paisley",
-    author: "Lakshmi R.",
-    time: "3d ago",
-    forks: 15,
-  },
-  {
-    image: seed5,
-    title: "Unfinished Raga Notes",
-    author: "Ravi D.",
-    time: "4d ago",
-    forks: 6,
-  },
-  {
-    image: seed6,
-    title: "Temple Architecture Sketch",
-    author: "Arjun P.",
-    time: "1w ago",
-    forks: 19,
-  },
-];
+// Use the mixed seeds from sample data
+const featuredSeeds = allSeeds.slice(0, 12);
 
 const shards = [
   {
@@ -82,6 +42,28 @@ const shards = [
 ];
 
 const Index = () => {
+  const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  const handlePlantSeed = (seedData: SeedCreationData) => {
+    console.log('Planting seed:', seedData);
+    // Here you would typically send the data to your backend
+    // For now, we'll just log it
+  };
+
+  const handleViewSeed = (seedId: string) => {
+    const seed = allSeeds.find(s => s.id === seedId);
+    if (seed) {
+      setSelectedSeed(seed);
+      setIsViewModalOpen(true);
+    }
+  };
+
+  const handleForkSeed = (seedId: string) => {
+    console.log('Forking seed:', seedId);
+    // Here you would typically handle the fork logic
+  };
+
   return (
     <div className="relative min-h-screen">
       <InkCursor />
@@ -134,14 +116,16 @@ const Index = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
-                <Link to="/auth">
+                <PlantSeedModal onPlantSeed={handlePlantSeed}>
                   <Button variant="hero" size="lg">
                     Share your unfinished idea
                   </Button>
+                </PlantSeedModal>
+                <Link to="/explore">
+                  <Button variant="hero-ghost" size="lg">
+                    Explore seeds
+                  </Button>
                 </Link>
-                <Button variant="hero-ghost" size="lg">
-                  Explore seeds
-                </Button>
               </div>
             </div>
 
@@ -194,21 +178,26 @@ const Index = () => {
           </div>
 
           {/* Masonry Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {seeds.map((seed, index) => (
-              <SeedCard
-                key={index}
-                {...seed}
-                className="animate-fade-in-up"
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          {featuredSeeds.map((seed, index) => (
+            <div key={seed.id} className={`${seed.type === 'text' ? 'row-span-1' : 'row-span-2'}`}>
+              <UnifiedSeedCard
+                seed={seed}
+                className="animate-fade-in-up h-full"
                 style={{ animationDelay: `${index * 0.1}s` } as React.CSSProperties}
+                onFork={handleForkSeed}
+                onView={handleViewSeed}
               />
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
 
           <div className="mt-12 text-center">
-            <Button variant="outline" size="lg">
-              View All Seeds
-            </Button>
+            <Link to="/explore">
+              <Button variant="outline" size="lg">
+                View All Seeds
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
@@ -221,6 +210,14 @@ const Index = () => {
           </p>
         </div>
       </footer>
+
+      {/* Seed View Modal */}
+      <SeedViewModal
+        seed={selectedSeed}
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        onFork={handleForkSeed}
+      />
     </div>
   );
 };

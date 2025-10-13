@@ -64,13 +64,13 @@ All colors MUST be HSL.
 
   .dark {
     /* Artive Color System - Dark Mode */
-    --background: 270 10% 6%; /* charcoal ink #0F0E10 */
+    --background: 270 8% 12%; /* subtle dark grey #1F1F24 */
     --foreground: 30 10% 74%; /* cloud grey #BFB9B6 */
     
     --card: 0 0% 5% / 0.6; /* translucent dark */
     --card-foreground: 30 10% 74%;
     
-    --popover: 270 10% 6%;
+    --popover: 270 8% 12%;
     --popover-foreground: 30 10% 74%;
     
     --primary: 30 10% 74%; /* cloud grey */
@@ -159,112 +159,88 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  /* Torn edge effect using clip-path */
-  .torn-edge {
-    clip-path: polygon(
-      0% 2%, 3% 0%, 7% 3%, 12% 1%, 18% 4%, 23% 2%, 29% 5%, 35% 3%, 
-      41% 6%, 47% 4%, 53% 7%, 59% 5%, 65% 8%, 71% 6%, 76% 9%, 82% 7%, 
-      88% 10%, 94% 8%, 97% 11%, 100% 9%, 100% 15%, 98% 20%, 100% 25%, 
-      98% 30%, 100% 35%, 98% 40%, 100% 45%, 98% 50%, 100% 55%, 98% 60%, 
-      100% 65%, 98% 70%, 100% 75%, 98% 80%, 100% 85%, 98% 90%, 100% 95%, 
-      97% 98%, 93% 100%, 88% 97%, 83% 99%, 78% 96%, 73% 98%, 68% 95%, 
-      63% 97%, 58% 94%, 53% 96%, 48% 93%, 43% 95%, 38% 92%, 33% 94%, 
-      28% 91%, 23% 93%, 18% 90%, 13% 92%, 8% 89%, 3% 91%, 1% 88%, 0% 85%
-    );
-    position: relative;
-    overflow: hidden;
-    /* Light mode subtle grey fill for visibility */
-    background-color: rgba(0,0,0,0.06);
-    border: 1px solid rgba(0,0,0,0.10);
+  /* Torn left edge banner License: GPL 3.0 License URL: https://www.gnu.org/licenses/gpl-3.0.en.html Structure: <div class="torn_container torn_left torn_right"> <div></div> <div>Torn Edge Banner</div> </div>*/
+  body{ /* Settings */
+    --torn-shadow-offset-x:-2px;
+    --torn-shadow-offset-y:2px;
+    --torn-shadow-blur:1px;
+    --torn-shadow-background-color:rgba(0,0,0,0.25);
+    --torn-background-color:#fef3c7;
+    --torn-left-width:10px;
+    --torn-right-width:10px;
+    --torn-left-clip-path:polygon(91% 0%, 85% 2%, 4% 3%, 42% 5%, 82% 6%, 63% 8%, 15% 9%, 49% 11%, 15% 12%, 93% 14%, 93% 15%, 40% 17%, 81% 18%, 79% 20%, 27% 22%, 6% 23%, 86% 25%, 79% 26%, 31% 28%, 12% 29%, 50% 31%, 42% 32%, 26% 34%, 33% 35%, 27% 37%, 19% 38%, 32% 40%, 70% 42%, 91% 43%, 10% 45%, 74% 46%, 67% 48%, 30% 49%, 54% 51%, 99% 52%, 15% 54%, 77% 55%, 65% 57%, 56% 58%, 52% 60%, 89% 62%, 87% 63%, 51% 65%, 61% 66%, 68% 68%, 46% 69%, 88% 71%, 45% 72%, 9% 74%, 44% 75%, 83% 77%, 14% 78%, 67% 80%, 76% 82%, 65% 83%, 92% 85%, 3% 86%, 17% 88%, 17% 89%, 91% 91%, 39% 92%, 7% 94%, 94% 95%, 59% 97%, 26% 98%, 22% 100%, calc(100% + 1px) 100%, calc(100% + 1px) 0%);
+    --torn-right-clip-path:polygon(82% 0%, 23% 2%, 78% 3%, 3% 5%, 64% 6%, 80% 8%, 91% 9%, 85% 11%, 14% 12%, 48% 14%, 18% 15%, 95% 17%, 28% 18%, 5% 20%, 36% 22%, 24% 23%, 49% 25%, 6% 26%, 10% 28%, 75% 29%, 71% 31%, 86% 32%, 85% 34%, 90% 35%, 93% 37%, 1% 38%, 32% 40%, 84% 42%, 86% 43%, 61% 45%, 45% 46%, 60% 48%, 62% 49%, 73% 51%, 77% 52%, 7% 54%, 24% 55%, 48% 57%, 35% 58%, 59% 60%, 65% 62%, 11% 63%, 32% 65%, 51% 66%, 95% 68%, 73% 69%, 97% 71%, 69% 72%, 82% 74%, 46% 75%, 40% 77%, 34% 78%, 46% 80%, 29% 82%, 65% 83%, 75% 85%, 14% 86%, 36% 88%, 1% 89%, 20% 91%, 25% 92%, 28% 94%, 50% 95%, 7% 97%, 50% 98%, 42% 100%, -10% 100%, -10% 0%);
   }
-  .dark .torn-edge {
-    /* Dark mode subtle translucent white */
-    background-color: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.10);
-  }
-  .torn-edge::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    /* Deckle highlight + shadow to suggest fibers */
-    background: linear-gradient(to bottom, rgba(255,255,255,0.35), rgba(255,255,255,0.0) 40%),
-                linear-gradient(to top, rgba(255,255,255,0.25), rgba(255,255,255,0.0) 40%);
-    mix-blend-mode: screen;
-    filter: drop-shadow(0 8px 14px rgba(10,10,10,0.10));
-    z-index: 1;
-  }
-  .torn-edge::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    pointer-events: none;
-    background-image: url('/assets/textures/paper-grain-1.png');
-    background-size: 280px auto;
-    opacity: 0.18;
-    mix-blend-mode: multiply;
-    /* Add a mask that uses the torn SVG for a more organic edge */
-    -webkit-mask-image: url('/assets/masks/torn-edge.svg');
-    mask-image: url('/assets/masks/torn-edge.svg');
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: cover;
-    mask-size: cover;
-    -webkit-mask-position: center;
-    mask-position: center;
+  .torn_container{
+    float:left;
+    clear:none;
+    margin-bottom:2em;
+    margin-right:1.5em;
+    position:relative;
   }
   
-  .torn-edge-soft {
-    clip-path: polygon(
-      1% 3%, 5% 1%, 10% 4%, 15% 2%, 20% 5%, 25% 3%, 30% 6%, 35% 4%, 
-      40% 7%, 45% 5%, 50% 8%, 55% 6%, 60% 9%, 65% 7%, 70% 10%, 75% 8%, 
-      80% 11%, 85% 9%, 90% 12%, 95% 10%, 98% 13%, 100% 50%, 98% 87%, 
-      95% 90%, 90% 88%, 85% 91%, 80% 89%, 75% 92%, 70% 90%, 65% 93%, 
-      60% 91%, 55% 94%, 50% 92%, 45% 95%, 40% 93%, 35% 96%, 30% 94%, 
-      25% 97%, 20% 95%, 15% 98%, 10% 96%, 5% 99%, 2% 97%, 0% 50%
-    );
-    position: relative;
-    overflow: hidden;
-    background-color: rgba(0,0,0,0.05);
-    border: 1px solid rgba(0,0,0,0.08);
+  .torn_container.text-card{
+    margin-bottom:6em;
+    margin-right:3.5em;
   }
-  .dark .torn-edge-soft {
-    background-color: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.09);
+  .torn_container>div:first-child{
+    margin-left:var(--torn-shadow-offset-x);
+    margin-top:var(--torn-shadow-offset-y);
+    left:0px;
+    top:0px;
+    right:calc(0px - var(--torn-shadow-offset-x));
+    bottom:calc(0px - var(--torn-shadow-offset-y));
+    position:absolute;
+    z-index:1;
+    filter:blur(var(--torn-shadow-blur));
   }
-
-  /* Tone down grain overlay in dark mode for subtler feel */
-  .dark .torn-edge::after { opacity: 0.10; }
-  .dark .torn-edge-soft::after { opacity: 0.08; }
-  .torn-edge-soft::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(to bottom, rgba(255,255,255,0.25), rgba(255,255,255,0.0) 40%),
-                linear-gradient(to top, rgba(255,255,255,0.18), rgba(255,255,255,0.0) 40%);
-    mix-blend-mode: screen;
-    filter: drop-shadow(0 6px 12px rgba(10,10,10,0.08));
-    z-index: 1;
+  .torn_container>div:nth-child(2), .torn_container>div:nth-child(2)>span{
+    vertical-align:middle;
   }
-  .torn-edge-soft::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    pointer-events: none;
-    background-image: url('/assets/textures/paper-grain-1.png');
-    background-size: 300px auto;
-    opacity: 0.14;
-    mix-blend-mode: multiply;
-    -webkit-mask-image: url('/assets/masks/torn-edge.svg');
-    mask-image: url('/assets/masks/torn-edge.svg');
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-size: cover;
-    mask-size: cover;
-    -webkit-mask-position: center;
-    mask-position: center;
+  .torn_container>div:nth-child(2), .torn_left>div:nth-child(2):before, .torn_right>div:nth-child(2):after{
+    background-color:var(--torn-background-color);
   }
+  
+  .dark .torn_container>div:nth-child(2){
+    background: linear-gradient(to bottom right, #451a03, #78350f);
+  }
+  
+  .dark .torn_left>div:nth-child(2):before, .dark .torn_right>div:nth-child(2):after{
+    background: linear-gradient(to bottom right, #451a03, #78350f);
+  }
+  .torn_container>div:nth-child(2), .torn_container>div:nth-child(2){
+    display:inline-block;
+    position:relative;
+    z-index:2;
+    padding:0.4em;
+  }
+  .torn_left>div:nth-child(2):before, .torn_left>div:first-child:before{
+    content:'';
+    position:absolute;
+    left:calc(-1 * var(--torn-left-width));
+    top:0px;
+    width:var(--torn-left-width);
+    bottom:0px;
+    -webkit-clip-path:var(--torn-left-clip-path);
+    clip-path:var(--torn-left-clip-path);
+  }
+  .torn_container>div:first-child, .torn_left>div:first-child:before, .torn_right>div:first-child:after{
+    background-color:var(--torn-shadow-background-color);
+  }
+  .torn_right>div:nth-child(2):after, .torn_right>div:first-child:after{
+    content:'';
+    position:absolute;
+    left:100%;
+    top:0px;
+    right:calc(-1 * var(--torn-right-width));
+    bottom:0px;
+    -webkit-clip-path:var(--torn-right-clip-path);
+    clip-path:var(--torn-right-clip-path);
+  }
+  .torn_right>div:nth-child(2):after{
+    left:calc(100% - 0.5px);
+  }
+  
   
   /* Ink ripple animation */
   @keyframes ink-ripple {

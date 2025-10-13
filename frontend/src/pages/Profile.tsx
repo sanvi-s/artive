@@ -2,54 +2,24 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
-import { SeedCard } from "@/components/SeedCard";
+import { UnifiedSeedCard } from "@/components/UnifiedSeedCard";
+import { PlantSeedModal } from "@/components/PlantSeedModal";
+import { SeedViewModal } from "@/components/SeedViewModal";
 import { Pencil, GitFork, Sparkles, ShoppingBag, Award, Users, Heart } from "lucide-react";
+import { allSeeds } from "@/data/sampleSeeds";
+import { SeedCreationData, Seed } from "@/types/seed";
+import { useState } from "react";
 
-const userSeeds = [
-  { 
-    id: "u1", 
-    image: "https://via.placeholder.com/300x200/E8C9B0/1E1B18?text=My+First+Sketch", 
-    title: "My First Sketch", 
-    author: "You", 
-    time: "1d ago", 
-    forks: 5 
-  },
-  { 
-    id: "u2", 
-    image: "https://via.placeholder.com/300x200/A3B9A5/1E1B18?text=Poem+Fragment", 
-    title: "Poem Fragment", 
-    author: "You", 
-    time: "3d ago", 
-    forks: 2 
-  },
-  { 
-    id: "u3", 
-    image: "https://via.placeholder.com/300x200/D4C3DE/1E1B18?text=Code+Snippet", 
-    title: "Code Snippet", 
-    author: "You", 
-    time: "1w ago", 
-    forks: 8 
-  },
-];
+// Sample user seeds (mix of text and visual)
+const userSeeds = allSeeds.filter(seed => 
+  seed.author === "Priya K." || seed.author === "Luna M." || seed.author === "River K." || 
+  seed.author === "Sage W." || seed.author === "Alex Chen" || seed.author === "Maya R."
+).slice(0, 12);
 
-const inspiredForks = [
-  { 
-    id: "f1", 
-    image: "https://via.placeholder.com/300x200/A3B9A5/1E1B18?text=Inspired+by+My+Poem", 
-    title: "Inspired by My Poem", 
-    author: "Guest Artist", 
-    time: "2h ago", 
-    forks: 1 
-  },
-  { 
-    id: "f2", 
-    image: "https://via.placeholder.com/300x200/D4C3DE/1E1B18?text=Remix+of+My+Sketch", 
-    title: "Remix of My Sketch", 
-    author: "Collaborator", 
-    time: "1d ago", 
-    forks: 3 
-  },
-];
+// Sample inspired forks
+const inspiredForks = allSeeds.filter(seed => 
+  seed.author !== "Priya K." && seed.author !== "Luna M." && seed.author !== "River K."
+).slice(0, 4);
 
 const badges = [
   { id: 1, name: "Starter", icon: "🌱", description: "Planted your first seed", earned: true },
@@ -60,6 +30,27 @@ const badges = [
 ];
 
 const Profile = () => {
+  const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  const handlePlantSeed = (seedData: SeedCreationData) => {
+    console.log('Planting seed:', seedData);
+    // Here you would typically send the data to your backend
+  };
+
+  const handleViewSeed = (seedId: string) => {
+    const seed = allSeeds.find(s => s.id === seedId);
+    if (seed) {
+      setSelectedSeed(seed);
+      setIsViewModalOpen(true);
+    }
+  };
+
+  const handleForkSeed = (seedId: string) => {
+    console.log('Forking seed:', seedId);
+    // Here you would typically handle the fork logic
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col">
       <InkCursor />
@@ -117,12 +108,19 @@ const Profile = () => {
         {/* Seeds you've planted */}
         <section>
           <h2 className="font-display text-2xl mb-6">Seeds you've planted</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
             {userSeeds.map((seed) => (
-              <SeedCard key={seed.id} {...seed} />
+              <div key={seed.id} className="break-inside-avoid mb-6">
+                <UnifiedSeedCard 
+                  seed={seed}
+                  onFork={handleForkSeed}
+                  onView={handleViewSeed}
+                />
+              </div>
             ))}
           </div>
         </section>
+
 
         {/* Forks you've inspired */}
         <section>
@@ -130,7 +128,11 @@ const Profile = () => {
           <div className="flex overflow-x-auto gap-6 pb-4">
             {inspiredForks.map((seed) => (
               <div key={seed.id} className="flex-shrink-0 w-64">
-                <SeedCard {...seed} />
+                <UnifiedSeedCard 
+                  seed={seed}
+                  onFork={handleForkSeed}
+                  onView={handleViewSeed}
+                />
               </div>
             ))}
           </div>
@@ -195,6 +197,14 @@ const Profile = () => {
           </div>
         </section>
       </main>
+
+      {/* Seed View Modal */}
+      <SeedViewModal
+        seed={selectedSeed}
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        onFork={handleForkSeed}
+      />
     </div>
   );
 };
