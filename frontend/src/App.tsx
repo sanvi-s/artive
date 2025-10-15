@@ -5,13 +5,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import Explore from "./pages/Explore";
 import ForkEditor from "./pages/ForkEditor";
 import LineageTree from "./pages/LineageTree";
 import Profile from "./pages/Profile";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
-import { RadialView, SpiralView, TimelineView } from "./pages/forklore";
+import { TimelineView } from "./pages/forklore";
 import { useKeyboardNavigation } from "./hooks/use-keyboard-navigation";
 
 const queryClient = new QueryClient();
@@ -23,11 +25,12 @@ const AppContent = () => {
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
       <Route path="/explore" element={<Explore />} />
       <Route path="/fork/:id" element={<ForkEditor />} />
       <Route path="/forklore" element={<LineageTree />} />
-      <Route path="/forklore/radial" element={<RadialView />} />
-      <Route path="/forklore/spiral" element={<SpiralView />} />
+      {/* Removed radial and spiral routes */}
       <Route path="/forklore/timeline" element={<TimelineView />} />
       {/* Legacy redirect */}
       <Route path="/lineage" element={<LineageTree />} />

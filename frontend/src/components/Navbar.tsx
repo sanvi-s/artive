@@ -73,10 +73,15 @@ export const Navbar = () => {
               <span className="sr-only">Search</span>
             </Button>
 
-            {/* Login Button */}
-            <Link to="/auth">
+            {/* Login/Signup Buttons */}
+            <Link to="/login">
               <Button variant="hero-ghost" size="sm" className="hidden sm:flex">
                 Login
+              </Button>
+            </Link>
+            <Link to="/signup">
+              <Button variant="hero" size="sm" className="hidden sm:flex">
+                Sign Up
               </Button>
             </Link>
 
@@ -127,13 +132,20 @@ export const Navbar = () => {
                 </Link>
               ))}
               
-              {/* Mobile Login Button */}
+              {/* Mobile Auth Buttons */}
               <div className="pt-2 border-t border-border/30">
-                <Link to="/auth">
-                  <Button variant="hero-ghost" size="sm" className="w-full" onClick={() => setIsMenuOpen(false)}>
-                    Login
-                  </Button>
-                </Link>
+                <div className="flex gap-2">
+                  <Link to="/login">
+                    <Button variant="hero-ghost" size="sm" className="w-full" onClick={() => setIsMenuOpen(false)}>
+                      Login
+                    </Button>
+                  </Link>
+                  <Link to="/signup">
+                    <Button variant="hero" size="sm" className="w-full" onClick={() => setIsMenuOpen(false)}>
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

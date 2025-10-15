@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Seed, TextSeed, VisualSeed } from "@/types/seed";
 import { GitFork, Eye, Quote, Image as ImageIcon, X, Calendar, User, Tag } from "lucide-react";
 
@@ -41,6 +41,10 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork }: SeedViewModalPr
             )}
             {seed.title}
           </DialogTitle>
+          {/* Accessible description to satisfy aria and silence warnings */}
+          <DialogDescription className="sr-only">
+            {seed.type === 'visual' ? (seed as VisualSeed).description || '' : (seed as TextSeed).excerpt || ''}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -111,6 +115,7 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork }: SeedViewModalPr
                     />
                   </div>
                   
+                  {(() => { try { console.debug('[SeedViewModal] visual', { id: seed.id, hasDescription: Boolean(seed.description), preview: (seed.description || '').slice(0, 80) }); } catch {} return null; })()}
                   {seed.description && (
                     <div>
                       <h3 className="font-display text-lg font-semibold mb-2">Description</h3>

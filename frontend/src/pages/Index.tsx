@@ -5,6 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
 import { PlantSeedModal } from "@/components/PlantSeedModal";
 import { SeedViewModal } from "@/components/SeedViewModal";
+import { ForkModal } from "@/components/ForkModal";
 import { Link } from "react-router-dom";
 import { allSeeds } from "@/data/sampleSeeds";
 import { SeedCreationData, Seed } from "@/types/seed";
@@ -44,11 +45,29 @@ const shards = [
 const Index = () => {
   const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isForkModalOpen, setIsForkModalOpen] = useState(false);
+  const [forkSeedMeta, setForkSeedMeta] = useState<{ id: string; type: 'text' | 'visual' | 'music' | 'code' | 'other'; initialText?: string } | null>(null);
 
-  const handlePlantSeed = (seedData: SeedCreationData) => {
-    console.log('Planting seed:', seedData);
-    // Here you would typically send the data to your backend
-    // For now, we'll just log it
+  const handlePlantSeed = async (seedData: SeedCreationData) => {
+    try {
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${apiBase}/api/seeds`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          title: seedData.title,
+          contentSnippet: seedData.content?.slice(0, 400) || "",
+          contentFull: seedData.content || "",
+          type: seedData.type === 'text' ? 'poem' : seedData.type,
+          thumbnailUrl: seedData.image || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || "Failed to plant seed");
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleViewSeed = (seedId: string) => {
@@ -60,8 +79,16 @@ const Index = () => {
   };
 
   const handleForkSeed = (seedId: string) => {
-    console.log('Forking seed:', seedId);
-    // Here you would typically handle the fork logic
+    const seed = allSeeds.find(s => s.id === seedId);
+    if (!seed) return;
+    if (seed.type === 'text') {
+      setForkSeedMeta({ id: seedId, type: 'text', initialText: seed.content });
+    } else if (seed.type === 'visual') {
+      setForkSeedMeta({ id: seedId, type: 'visual' });
+    } else {
+      setForkSeedMeta({ id: seedId, type: 'other' });
+    }
+    setIsForkModalOpen(true);
   };
 
   return (
@@ -217,6 +244,14 @@ const Index = () => {
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         onFork={handleForkSeed}
+      />
+
+      <ForkModal 
+        isOpen={isForkModalOpen}
+        onClose={() => setIsForkModalOpen(false)}
+        seedId={forkSeedMeta?.id || null}
+        seedType={forkSeedMeta?.type}
+        initialText={forkSeedMeta?.initialText}
       />
     </div>
   );

@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Seed, TextSeed, VisualSeed } from "@/types/seed";
 import { TextCard } from "./TextCard";
-import { GitFork, Eye, Image as ImageIcon } from "lucide-react";
+import { GitFork, Eye, Image as ImageIcon, X } from "lucide-react";
 
 interface UnifiedSeedCardProps {
   seed: Seed;
@@ -10,6 +10,7 @@ interface UnifiedSeedCardProps {
   style?: React.CSSProperties;
   onFork?: (seedId: string) => void;
   onView?: (seedId: string) => void;
+  onDelete?: (seedId: string) => void;
 }
 
 export const UnifiedSeedCard = ({ 
@@ -17,7 +18,8 @@ export const UnifiedSeedCard = ({
   className, 
   style, 
   onFork, 
-  onView
+  onView,
+  onDelete
 }: UnifiedSeedCardProps) => {
   // Render text seeds with TextCard component
   if (seed.type === 'text') {
@@ -34,7 +36,7 @@ export const UnifiedSeedCard = ({
 
   // Render visual seeds with the existing SeedCard logic
   if (seed.type === 'visual') {
-    return <VisualSeedCard seed={seed as VisualSeed} className={className} style={style} onFork={onFork} onView={onView} />;
+    return <VisualSeedCard seed={seed as VisualSeed} className={className} style={style} onFork={onFork} onView={onView} onDelete={onDelete} />;
   }
 
   // For other types, render a placeholder
@@ -51,15 +53,18 @@ const VisualSeedCard = ({
   className, 
   style, 
   onFork, 
-  onView
+  onView,
+  onDelete
 }: {
   seed: VisualSeed;
   className?: string;
   style?: React.CSSProperties;
   onFork?: (seedId: string) => void;
   onView?: (seedId: string) => void;
+  onDelete?: (seedId: string) => void;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isLandscape, setIsLandscape] = useState<boolean | null>(null);
 
   const handleFork = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -69,6 +74,11 @@ const VisualSeedCard = ({
   const handleView = (e: React.MouseEvent) => {
     e.stopPropagation();
     onView?.(seed.id);
+  };
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.(seed.id);
   };
 
 
@@ -95,13 +105,28 @@ const VisualSeedCard = ({
           <ImageIcon className="h-4 w-4 text-accent-2 group-hover:scale-110 transition-transform duration-300" />
         </div>
       </div>
+      {onDelete && (
+        <div className="absolute top-3 right-3 z-10">
+          <button
+            onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this seed? This cannot be undone.')) { onDelete?.(seed.id); } }}
+            className="px-2 py-1 text-xs rounded-full bg-destructive/80 hover:bg-destructive text-destructive-foreground border border-destructive/50 transition-colors flex items-center gap-1"
+          >
+            <X className="h-3 w-3" />
+            Delete
+          </button>
+        </div>
+      )}
       
       {/* Image */}
-      <div className="relative aspect-[4/5] overflow-hidden">
+      <div className={`relative ${isLandscape === null ? 'aspect-[4/5]' : (isLandscape ? 'aspect-video' : 'aspect-[4/5]')} overflow-hidden`}>
         <img
           src={seed.image}
           alt={seed.alt || seed.title}
           className="w-full h-full object-cover transition-transform duration-long ease-organic group-hover:scale-105"
+          onLoad={(e) => {
+            const img = e.currentTarget as HTMLImageElement;
+            setIsLandscape(img.naturalWidth >= img.naturalHeight);
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/40 to-transparent" />
         
@@ -160,6 +185,7 @@ const VisualSeedCard = ({
             <Eye className="h-3 w-3" />
             <span>View</span>
           </button>
+          {/* Delete action removed from footer; kept only as top-right icon */}
         </div>
       </div>
       </div>

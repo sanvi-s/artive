@@ -36,11 +36,53 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
   });
   const [newTag, setNewTag] = useState('');
   const [newThreadPart, setNewThreadPart] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let finalData = { ...formData } as SeedCreationData;
+    // Ensure the selected type and description are present in the payload
+    finalData.type = selectedType;
+    if (selectedType === 'visual') {
+      (finalData as any).description = ((finalData as any).description || '').toString();
+    }
+    try { console.debug('[PlantSeedModal] submitting', { type: finalData.type, title: finalData.title, description: (finalData as any).description }); } catch {}
+    if (selectedType === 'visual') {
+      if (!imageFile) {
+        // block submit if visual without an image
+        return;
+      }
+      try {
+        setUploading(true);
+        let apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        if (!apiBase) apiBase = "http://localhost:5000";
+        const form = new FormData();
+        form.append('file', imageFile);
+        form.append('folder', 'artive/seeds');
+        try { console.debug('[PlantSeedModal] uploading to', `${apiBase}/api/uploads`, { folder: 'artive/seeds', fileName: imageFile?.name }); } catch {}
+        const res = await fetch(`${apiBase}/api/uploads`, { method: 'POST', body: form });
+        const raw = await res.text();
+        let data: any = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch {}
+        if (!res.ok || !data?.url) {
+          try { console.error('[PlantSeedModal] upload failed', { status: res.status, raw }); } catch {}
+          throw new Error(data?.error?.message || 'Upload failed');
+        }
+        // ensure we never save /api/uploads path by mistake
+        if (String(data.url).startsWith('/api/uploads')) throw new Error('Upload did not return a public URL');
+        finalData.image = data.url as string;
+      } catch (err) {
+        try { console.error('[PlantSeedModal] upload exception', err); } catch {}
+        setUploading(false);
+        return;
+      } finally {
+        setUploading(false);
+      }
+    }
     if (onPlantSeed) {
-      onPlantSeed(formData);
+      onPlantSeed(finalData);
     }
     setIsOpen(false);
     // Reset form
@@ -53,6 +95,8 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
       isThread: false,
       threadParts: [],
     });
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const addTag = () => {
@@ -240,18 +284,33 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
           )}
 
           {selectedType === 'visual' && (
-            <div className="space-y-2">
-              <Label htmlFor="image" className="text-sm font-medium">
-                Image URL
-              </Label>
-              <Input
-                id="image"
-                value={formData.image || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                placeholder="https://example.com/image.jpg"
-                className="torn-edge-soft"
-                required
-              />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="imageFile" className="text-sm font-medium">Upload image</Label>
+                <Input id="imageFile" type="file" accept="image/*" className="torn-edge-soft" required onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setImageFile(f);
+                  setImagePreview(f ? URL.createObjectURL(f) : null);
+                }} />
+              </div>
+              {imagePreview && (
+                <div className="rounded-lg overflow-hidden border bg-card/50">
+                  <img src={imagePreview} alt="Preview" className="w-full h-auto object-contain" />
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="visualDescription" className="text-sm font-medium">
+                  Description (optional)
+                </Label>
+                <Textarea
+                  id="visualDescription"
+                  value={(formData as any).description || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Describe your visual seed..."
+                  className="torn-edge-soft min-h-[80px]"
+                />
+              </div>
+              {uploading && <div className="text-xs text-muted-foreground">Uploading image...</div>}
             </div>
           )}
 

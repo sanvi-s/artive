@@ -206,7 +206,7 @@ const sampleNodes: Node[] = [
 
 const LineageTree = () => {
   const navigate = useNavigate();
-  const [layout, setLayout] = useState<"radial" | "timeline" | "spiral" | "tree">("tree");
+  const [layout, setLayout] = useState<"timeline" | "tree">("tree");
   const [filter, setFilter] = useState<"all" | "visual" | "poems" | "music" | "code">("all");
   const [depth, setDepth] = useState(4);
   const [zoom, setZoom] = useState(1);
@@ -411,7 +411,7 @@ const LineageTree = () => {
         <div>
           <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Layout</label>
           <div className="flex gap-1">
-            {(["radial", "timeline", "spiral", "tree"] as const).map((layoutType) => {
+            {(["timeline", "tree"] as const).map((layoutType) => {
               const isCurrentLayout = layout === layoutType;
               const isTreeLayout = layoutType === "tree";
               
@@ -424,13 +424,7 @@ const LineageTree = () => {
                     if (isTreeLayout) {
                       setLayout(layoutType);
                     } else {
-                      // Navigate to specific Forklore view
-                      const routes = {
-                        radial: "/forklore/radial",
-                        timeline: "/forklore/timeline", 
-                        spiral: "/forklore/spiral"
-                      };
-                      navigate(routes[layoutType]);
+                      navigate("/forklore/timeline");
                     }
                   }}
                   className="text-xs capitalize"
