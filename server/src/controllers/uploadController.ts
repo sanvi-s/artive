@@ -5,23 +5,42 @@ import { cloudinary } from '../services/cloudinaryService';
 export async function uploadToCloudinary(req: Request, res: Response) {
   const file = (req as any).file as Express.Multer.File | undefined;
   if (!file) return res.status(400).json({ error: { message: 'Missing file field' } });
+  
+  // Validate file type
+  if (!file.mimetype?.startsWith('image/')) {
+    return res.status(400).json({ error: { message: 'Only image files are allowed' } });
+  }
+  
+  // Validate file size (additional check beyond multer)
+  if (file.size > 10 * 1024 * 1024) {
+    return res.status(400).json({ error: { message: 'File too large. Maximum size is 10MB.' } });
+  }
+  
   const folder = (req.body?.folder as string) || 'artive/uploads';
   const publicId = req.body?.public_id as string | undefined;
 
   try {
     try { console.debug(`[uploads] incoming upload`, { folder, publicId, size: file.size, mimetype: file.mimetype }); } catch {}
-    const uploadResult = await new Promise<any>((resolve, reject) => {
-      const upload = cloudinary.uploader.upload_stream(
-        {
-          folder,
-          public_id: publicId,
-          resource_type: 'auto',
-          transformation: [{ quality: 'auto', fetch_format: 'auto' }],
-        },
-        (err, result) => (err ? reject(err) : resolve(result))
-      );
-      streamifier.createReadStream(file.buffer).pipe(upload);
-    });
+    
+    // Add timeout to prevent hanging uploads
+    const uploadResult = await Promise.race([
+      new Promise<any>((resolve, reject) => {
+        const upload = cloudinary.uploader.upload_stream(
+          {
+            folder,
+            public_id: publicId,
+            resource_type: 'auto',
+            transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+            timeout: 30000, // 30 second timeout
+          },
+          (err, result) => (err ? reject(err) : resolve(result))
+        );
+        streamifier.createReadStream(file.buffer).pipe(upload);
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Upload timeout after 30 seconds')), 30000)
+      )
+    ]);
 
     try { console.debug(`[uploads] uploaded`, { public_id: uploadResult.public_id, url: uploadResult.secure_url, width: uploadResult.width, height: uploadResult.height }); } catch {}
     return res.json({
@@ -33,7 +52,18 @@ export async function uploadToCloudinary(req: Request, res: Response) {
     });
   } catch (err: any) {
     try { console.error(`[uploads] error`, err?.message || err); } catch {}
-    return res.status(500).json({ error: { message: err.message } });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Upload failed';
+    if (err.message?.includes('timeout')) {
+      errorMessage = 'Upload timed out. Please try again with a smaller image.';
+    } else if (err.message?.includes('File too large')) {
+      errorMessage = 'File is too large. Maximum size is 10MB.';
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+    
+    return res.status(500).json({ error: { message: errorMessage } });
   }
 }
 

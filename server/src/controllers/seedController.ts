@@ -24,7 +24,8 @@ export async function listSeeds(req: Request, res: Response) {
   }
 
   const [items, total] = await Promise.all([
-    Seed.find(q, { title: 1, contentSnippet: 1, type: 1, author: 1, forkCount: 1, thumbnailUrl: 1, createdAt: 1 })
+    Seed.find(q, { title: 1, contentSnippet: 1, contentFull: 1, type: 1, author: 1, forkCount: 1, thumbnailUrl: 1, createdAt: 1 })
+      .populate('author', 'username displayName avatarUrl')
       .sort(sort as any)
       .skip(skip)
       .limit(limit)
@@ -41,9 +42,12 @@ export async function getSeed(req: Request, res: Response) {
   const projection: any = full
     ? {}
     : { contentFull: 0 };
-  const seed = await Seed.findById(id, projection).lean<ISeed>();
+  const seed = await Seed.findById(id, projection)
+    .populate('author', 'username displayName avatarUrl')
+    .lean<ISeed>();
   if (!seed || seed?.deletedAt) return res.status(404).json({ error: { message: 'Not found' } });
   const forks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(id) })
+    .populate('author', 'username displayName avatarUrl')
     .sort('-createdAt')
     .limit(10)
     .lean();

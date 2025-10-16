@@ -59,6 +59,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/seeds', seedRoutes);
 app.use('/api/seeds/:id/forks', forkRoutes);
+app.use('/api/forks', forkRoutes);
 app.use('/api/lineage', lineageRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/search', searchRoutes);

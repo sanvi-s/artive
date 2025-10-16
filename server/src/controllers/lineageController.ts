@@ -5,28 +5,13 @@ import { Fork } from '../models/Fork';
 export async function getLineage(req: Request, res: Response) {
   const { id } = req.params as { id: string };
   const depth = Math.min(5, Math.max(1, Number(req.query.depth || 3)));
-  // BFS up to depth using forks
-  const visited = new Set<string>([id]);
-  const queue: string[] = [id];
+  
+  // For now, just return the original seed since we don't have fork-to-seed relationships yet
+  // This will show at least the original seed in the tree
+  const nodes = [id];
   const edges: Array<{ parent: string; child: string }> = [];
-  let currentDepth = 0;
-  while (queue.length && currentDepth < depth) {
-    const layerSize = queue.length;
-    for (let i = 0; i < layerSize; i++) {
-      const seedId = queue.shift()!;
-      const forks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(seedId) }, { _id: 1 }).limit(100).lean();
-      for (const f of forks) {
-        const child = String(f._id);
-        edges.push({ parent: seedId, child });
-        if (!visited.has(child)) {
-          visited.add(child);
-          queue.push(child);
-        }
-      }
-    }
-    currentDepth += 1;
-  }
-  res.json({ root: id, edges });
+  
+  res.json({ nodes, edges });
 }
 
 export async function exportLineage(req: Request, res: Response) {

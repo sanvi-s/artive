@@ -10,6 +10,8 @@ import { Link } from "react-router-dom";
 import { allSeeds } from "@/data/sampleSeeds";
 import { SeedCreationData, Seed } from "@/types/seed";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import heroCollage from "@/assets/hero-collage.jpg";
 import seed1 from "@/assets/seed-1.jpg";
 import seed2 from "@/assets/seed-2.jpg";
@@ -43,30 +45,57 @@ const shards = [
 ];
 
 const Index = () => {
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const [forkSeedMeta, setForkSeedMeta] = useState<{ id: string; type: 'text' | 'visual' | 'music' | 'code' | 'other'; initialText?: string } | null>(null);
 
   const handlePlantSeed = async (seedData: SeedCreationData) => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to plant seeds.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
       const token = localStorage.getItem("token");
+      
+      // Handle visual seed descriptions properly
+      const description = seedData.type === 'visual' ? (seedData as any).description || '' : '';
+      const contentSnippet = seedData.type === 'visual' ? description : (seedData.content?.slice(0, 400) || "");
+      const contentFull = seedData.type === 'visual' ? description : (seedData.content || "");
+      
       const res = await fetch(`${apiBase}/api/seeds`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           title: seedData.title,
-          contentSnippet: seedData.content?.slice(0, 400) || "",
-          contentFull: seedData.content || "",
+          contentSnippet: contentSnippet,
+          contentFull: contentFull,
           type: seedData.type === 'text' ? 'poem' : seedData.type,
           thumbnailUrl: seedData.image || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error?.message || "Failed to plant seed");
+      
+      toast({
+        title: "Seed Planted!",
+        description: "Your creative seed has been planted successfully.",
+      });
     } catch (err) {
       console.error(err);
+      toast({
+        title: "Error",
+        description: "Failed to plant seed. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 

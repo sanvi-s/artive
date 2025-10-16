@@ -9,6 +9,7 @@ interface TextCardProps {
   style?: React.CSSProperties;
   onFork?: (seedId: string) => void;
   onView?: (seedId: string) => void;
+  onDelete?: (seedId: string) => void;
 }
 
 export const TextCard = ({ 
@@ -16,7 +17,8 @@ export const TextCard = ({
   className, 
   style, 
   onFork, 
-  onView
+  onView,
+  onDelete
 }: TextCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -29,6 +31,13 @@ export const TextCard = ({
   const handleView = (e: React.MouseEvent) => {
     e.stopPropagation();
     onView?.(seed.id);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Delete this seed? This cannot be undone.')) {
+      onDelete?.(seed.id);
+    }
   };
 
 
@@ -79,7 +88,7 @@ export const TextCard = ({
         {/* Text content */}
         <div className="space-y-2">
           <div className="relative">
-            <p className="text-foreground/90 leading-relaxed text-sm font-serif line-clamp-4">
+            <p className="text-foreground/90 leading-relaxed text-sm font-serif line-clamp-4 whitespace-pre-wrap">
               {displayContent}
             </p>
             
@@ -168,6 +177,14 @@ export const TextCard = ({
             <Eye className="h-3 w-3" />
             <span>Read</span>
           </button>
+          {onDelete && (
+            <button 
+              onClick={handleDelete}
+              className="flex items-center gap-1 px-2 py-1 rounded-full bg-destructive/80 hover:bg-destructive text-destructive-foreground border border-destructive/50 transition-colors"
+            >
+              <span>Delete</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -2,8 +2,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
-import { ArrowLeft, Layout, Filter, SlidersHorizontal, Download, Undo2, Redo2 } from "lucide-react";
+import { ArrowLeft, Layout, Download, Undo2, Redo2, Play, Database } from "lucide-react";
 import { useState, useRef, useMemo, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useForklore } from "@/contexts/ForkloreContext";
 
 interface Node {
   id: string;
@@ -15,6 +18,22 @@ interface Node {
   forks: number;
   date: string;
   type: "original" | "fork";
+}
+
+interface UserSeed {
+  _id: string;
+  title: string;
+  contentSnippet?: string;
+  type: string;
+  author: string;
+  forkCount: number;
+  thumbnailUrl?: string;
+  createdAt: string;
+}
+
+interface LineageData {
+  nodes: string[];
+  edges: Array<{ parent: string; child: string }>;
 }
 
 const sampleNodes: Node[] = [
@@ -206,9 +225,9 @@ const sampleNodes: Node[] = [
 
 const LineageTree = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { isAuthenticated, user } = useAuth();
   const [layout, setLayout] = useState<"timeline" | "tree">("tree");
-  const [filter, setFilter] = useState<"all" | "visual" | "poems" | "music" | "code">("all");
-  const [depth, setDepth] = useState(4);
   const [zoom, setZoom] = useState(1);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -217,40 +236,286 @@ const LineageTree = () => {
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const connections = [
-    // Original to first level forks
-    { from: "1", to: "2" }, // Original -> Color Studies
-    { from: "1", to: "3" }, // Original -> Dreams in Motion
-    { from: "1", to: "4" }, // Original -> Watercolor Sketches
-    
-    // First level to second level forks
-    { from: "2", to: "5" }, // Color Studies -> Abstract Emotions
-    { from: "2", to: "6" }, // Color Studies -> Color Theory Notes
-    { from: "3", to: "7" }, // Dreams in Motion -> Dance of Colors
-    { from: "3", to: "8" }, // Dreams in Motion -> Flowing Dreams
-    { from: "4", to: "9" }, // Watercolor Sketches -> Sketchbook Stories
-    { from: "4", to: "10" }, // Watercolor Sketches -> Ink & Water
-    
-    // Second level to third level forks
-    { from: "6", to: "11" }, // Color Theory Notes -> Theoretical Colors
-    { from: "6", to: "12" }, // Color Theory Notes -> Practical Palette
-    { from: "8", to: "13" }, // Flowing Dreams -> Stream of Consciousness
-    { from: "8", to: "14" }, // Flowing Dreams -> Dream Currents
-    
-    // Third level to fourth level forks
-    { from: "12", to: "15" }, // Practical Palette -> Color Harmony
-    { from: "12", to: "16" }, // Practical Palette -> Palette Studies
-  ];
+  // New state for real data functionality
+  const [mode, setMode] = useState<"demo" | "real">("real");
+  const [userSeeds, setUserSeeds] = useState<UserSeed[]>([]);
+  const { selectedSeedId, setSelectedSeedId } = useForklore();
+  const [lineageData, setLineageData] = useState<LineageData | null>(null);
+  const [realNodes, setRealNodes] = useState<Node[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Get current nodes and connections based on mode
+  const currentNodes = useMemo(() => {
+    return mode === "demo" ? sampleNodes : realNodes;
+  }, [mode, realNodes]);
+
+  const currentConnections = useMemo(() => {
+    if (mode === "demo") {
+      return [
+        // Original to first level forks
+        { from: "1", to: "2" }, // Original -> Color Studies
+        { from: "1", to: "3" }, // Original -> Dreams in Motion
+        { from: "1", to: "4" }, // Original -> Watercolor Sketches
+        
+        // First level to second level forks
+        { from: "2", to: "5" }, // Color Studies -> Abstract Emotions
+        { from: "2", to: "6" }, // Color Studies -> Color Theory Notes
+        { from: "3", to: "7" }, // Dreams in Motion -> Dance of Colors
+        { from: "3", to: "8" }, // Dreams in Motion -> Flowing Dreams
+        { from: "4", to: "9" }, // Watercolor Sketches -> Sketchbook Stories
+        { from: "4", to: "10" }, // Watercolor Sketches -> Ink & Water
+        
+        // Second level to third level forks
+        { from: "6", to: "11" }, // Color Theory Notes -> Theoretical Colors
+        { from: "6", to: "12" }, // Color Theory Notes -> Practical Palette
+        { from: "8", to: "13" }, // Flowing Dreams -> Stream of Consciousness
+        { from: "8", to: "14" }, // Flowing Dreams -> Dream Currents
+        
+        // Third level to fourth level forks
+        { from: "12", to: "15" }, // Practical Palette -> Color Harmony
+        { from: "12", to: "16" }, // Practical Palette -> Palette Studies
+      ];
+    } else {
+      return lineageData?.edges || [];
+    }
+  }, [mode, lineageData]);
 
   const handleNodeClick = (node: Node) => {
     // Expand this node to emphasize its child branches and scale the petal
     setExpandedNodeId(prev => prev === node.id ? null : node.id);
   };
 
+  // Fetch user seeds when authenticated
+  useEffect(() => {
+    const fetchUserSeeds = async () => {
+      if (!isAuthenticated || !user) return;
+
+      try {
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        const token = localStorage.getItem("token");
+        
+        if (!token) return;
+
+        // Fetch user's seeds using the actual user ID
+        const seedsRes = await fetch(`${apiBase}/api/seeds?author=${encodeURIComponent(user.id)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (seedsRes.ok) {
+          const seedsData = await seedsRes.json();
+          setUserSeeds(seedsData.items || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user seeds:', error);
+      }
+    };
+
+    fetchUserSeeds();
+  }, [isAuthenticated, user]);
+
   // Clear any previously saved tagline and avoid persistence going forward
   useEffect(() => {
     try { localStorage.removeItem("forkloreTagline"); } catch {}
   }, []);
+
+  // Auto-load lineage data when selectedSeedId changes
+  useEffect(() => {
+    if (selectedSeedId && mode === "real") {
+      fetchLineageData(selectedSeedId);
+    }
+  }, [selectedSeedId, mode]);
+
+  // Fetch lineage data when seed is selected
+  const fetchLineageData = async (seedId: string) => {
+    if (!seedId) return;
+    
+    setLoading(true);
+    try {
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem("token");
+      
+      const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=3`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setLineageData(data);
+        buildRealTree(data, seedId);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch lineage data",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch lineage data:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to fetch lineage data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Build real tree from lineage data
+  const buildRealTree = async (lineageData: LineageData, rootSeedId: string) => {
+    try {
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem("token");
+      
+      // Fetch details for all nodes including their forks
+      const nodeDetails = await Promise.all(
+        lineageData.nodes.map(async (nodeId) => {
+          const res = await fetch(`${apiBase}/api/seeds/${nodeId}`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            // The API returns { seed, forks }, so we need both
+            return { seed: data.seed, forks: data.forks || [] };
+          }
+          return null;
+        })
+      );
+
+      // Filter out failed requests and build nodes
+      const validNodeDetails = nodeDetails.filter(Boolean);
+      const allNodes: Node[] = [];
+      
+      // Add main seeds as nodes
+      validNodeDetails.forEach((nodeDetail) => {
+        const seed = nodeDetail.seed;
+        allNodes.push({
+          id: seed._id,
+          title: seed.title,
+          author: seed.author?.displayName || seed.author?.username || 'Unknown',
+          image: seed.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${seed.author?.displayName?.charAt(0) || 'U'}`,
+          x: 0, // Will be calculated
+          y: 0, // Will be calculated
+          forks: seed.forkCount || 0,
+          date: new Date(seed.createdAt).toISOString().split('T')[0],
+          type: seed._id === rootSeedId ? "original" : "fork",
+          seedType: seed.type,
+          content: seed.contentFull || seed.contentSnippet || ''
+        } as any);
+
+        // Add forks as separate nodes
+        nodeDetail.forks.forEach((fork: any) => {
+          const originalContent = seed.contentFull || seed.contentSnippet || '';
+          const forkContent = fork.content || fork.summary || fork.contentDelta || '';
+          const combinedContent = originalContent && forkContent
+            ? `${originalContent}\n${forkContent}`
+            : (forkContent || originalContent);
+          allNodes.push({
+            id: fork._id,
+            title: fork.title || fork.summary || 'Fork',
+            author: fork.author?.displayName || fork.author?.username || 'Anonymous',
+            image: fork.thumbnailUrl || fork.parentSeed?.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${fork.author?.displayName?.charAt(0) || 'F'}`,
+            x: 0, // Will be calculated
+            y: 0, // Will be calculated
+            forks: 0,
+            date: new Date(fork.createdAt).toISOString().split('T')[0],
+            type: "fork",
+            seedType: fork.type || 'text',
+            content: combinedContent,
+            parentId: fork.parentSeed?._id || seed._id
+          } as any);
+        });
+      });
+
+      // Create edges for the tree structure
+      const edges = [];
+      validNodeDetails.forEach((nodeDetail) => {
+        const seed = nodeDetail.seed;
+        nodeDetail.forks.forEach((fork: any) => {
+          edges.push({
+            from: seed._id,
+            to: fork._id
+          });
+        });
+      });
+
+      // Update lineage data with the edges
+      console.log('🌳 Created edges for tree:', edges);
+      setLineageData(prev => ({
+        ...prev,
+        edges: edges
+      }));
+
+      // Calculate positions using tree layout algorithm
+      const positionedNodes = calculateTreePositions(allNodes, edges, rootSeedId);
+      setRealNodes(positionedNodes);
+    } catch (error) {
+      console.error('Failed to build real tree:', error);
+    }
+  };
+
+  // Calculate tree positions
+  const calculateTreePositions = (nodes: Node[], edges: Array<{ from: string; to: string }>, rootId: string) => {
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    const childrenMap = new Map<string, string[]>();
+    const levels = new Map<string, number>();
+    
+    // Build children map and calculate levels
+    edges.forEach(edge => {
+      if (!childrenMap.has(edge.from)) {
+        childrenMap.set(edge.from, []);
+      }
+      childrenMap.get(edge.from)!.push(edge.to);
+    });
+
+    // BFS to calculate levels
+    const queue = [{ id: rootId, level: 0 }];
+    const visited = new Set<string>();
+    
+    while (queue.length > 0) {
+      const { id, level } = queue.shift()!;
+      if (visited.has(id)) continue;
+      
+      visited.add(id);
+      levels.set(id, level);
+      
+      const children = childrenMap.get(id) || [];
+      children.forEach(childId => {
+        if (!visited.has(childId)) {
+          queue.push({ id: childId, level: level + 1 });
+        }
+      });
+    }
+
+    // Calculate positions
+    const levelGroups = new Map<number, Node[]>();
+    nodes.forEach(node => {
+      const level = levels.get(node.id) || 0;
+      if (!levelGroups.has(level)) {
+        levelGroups.set(level, []);
+      }
+      levelGroups.get(level)!.push(node);
+    });
+
+    const positionedNodes: Node[] = [];
+    const levelSpacing = 120;
+    const nodeSpacing = 180;
+
+    levelGroups.forEach((levelNodes, level) => {
+      const y = 100 + level * levelSpacing;
+      const totalWidth = (levelNodes.length - 1) * nodeSpacing;
+      const startX = 500 - totalWidth / 2;
+
+      levelNodes.forEach((node, index) => {
+        positionedNodes.push({
+          ...node,
+          x: startX + index * nodeSpacing,
+          y: y
+        });
+      });
+    });
+
+    return positionedNodes;
+  };
 
   // Compute a depth level for styling (1 = earliest, 4 = latest)
   const nodeLevelByY = (y: number) => {
@@ -310,13 +575,13 @@ const LineageTree = () => {
   // Precompute gradients for nodes
   const gradients = useMemo(() => {
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-    return sampleNodes.map((n) => {
+    return currentNodes.map((n) => {
       const level = nodeLevelByY(n.y);
       const deep = greenByLevel(level);
       const light = isDark ? "#8fbc8f" : "hsl(120 30% 98%)";
       return { id: `petal-grad-${n.id}` , light, deep };
     });
-  }, []);
+  }, [currentNodes]);
 
   // Specific palette per requirements (hex) - Green theme
   const levelHexColor = (level: number) => {
@@ -364,6 +629,15 @@ const LineageTree = () => {
           <div className="font-display text-[1rem]" style={{ color: '#b35e78' }}>
             your seed, their forklore.
           </div>
+          {mode === "real" && (
+            <div className="text-xs text-muted-foreground mt-2 max-w-md">
+              {selectedSeedId ? (
+                <span>Showing lineage tree for your selected seed. Click nodes to expand branches.</span>
+              ) : (
+                <span>Select "Real" mode and choose one of your seeds to see its actual lineage tree.</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {/* Top Controls */}
@@ -377,14 +651,6 @@ const LineageTree = () => {
         <Button variant="ghost" size="icon">
           <Layout className="h-5 w-5" />
           <span className="sr-only">Layout Options</span>
-        </Button>
-        <Button variant="ghost" size="icon">
-          <Filter className="h-5 w-5" />
-          <span className="sr-only">Filter</span>
-        </Button>
-        <Button variant="ghost" size="icon">
-          <SlidersHorizontal className="h-5 w-5" />
-          <span className="sr-only">Depth Slider</span>
         </Button>
         <Button variant="ghost" size="icon">
           <Undo2 className="h-5 w-5" />
@@ -407,7 +673,81 @@ const LineageTree = () => {
       </div>
 
       {/* Right Sidebar Controls */}
-      <div className="absolute top-16 right-4 z-20 rounded-lg p-4 space-y-3 dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)] bg-background/80 backdrop-blur-sm border border-border/20">
+      <div className="absolute top-16 right-4 z-20 rounded-lg p-4 space-y-3 dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)] bg-background/80 backdrop-blur-sm border border-border/20 w-64 min-h-[400px]">
+        {/* Mode Selection */}
+        <div>
+          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Mode</label>
+          <div className="flex gap-1">
+            <Button
+              variant={mode === "demo" ? "hero" : "ghost"}
+              size="sm"
+              onClick={() => setMode("demo")}
+              className="text-xs flex items-center gap-1"
+              style={mode === "demo" ? {
+                background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+                border: 'none',
+                color: '#f2f2f2',
+                boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+              } : {}}
+            >
+              <Play className="h-3 w-3" />
+              Demo
+            </Button>
+            <Button
+              variant={mode === "real" ? "hero" : "ghost"}
+              size="sm"
+              onClick={() => setMode("real")}
+              className="text-xs flex items-center gap-1"
+              style={mode === "real" ? {
+                background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+                border: 'none',
+                color: '#f2f2f2',
+                boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+              } : {}}
+            >
+              <Database className="h-3 w-3" />
+              Real
+            </Button>
+          </div>
+        </div>
+
+        {/* Seed Selection (only in real mode) */}
+        {mode === "real" && (
+          <div>
+            <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Select Your Seed</label>
+            {userSeeds.length > 0 ? (
+              <select
+                value={selectedSeedId}
+                onChange={(e) => {
+                  setSelectedSeedId(e.target.value);
+                  if (e.target.value) {
+                    fetchLineageData(e.target.value);
+                  }
+                }}
+                className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs dark:[background:rgba(60,60,65,0.8)] dark:[border:1px_solid_rgba(255,255,255,0.15)] dark:[color:#f3d9ea]"
+                disabled={loading}
+              >
+                <option value="">Choose a seed...</option>
+                {userSeeds.map((seed) => (
+                  <option key={seed._id} value={seed._id}>
+                    {seed.title} ({seed.forkCount} forks)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-xs text-muted-foreground p-2 border border-border rounded-md">
+                {isAuthenticated ? "No seeds found. Create some seeds first!" : "Please log in to see your seeds."}
+              </div>
+            )}
+            {loading && (
+              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full"></div>
+                Loading lineage...
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Layout</label>
           <div className="flex gap-1">
@@ -464,39 +804,6 @@ const LineageTree = () => {
           </div>
         </div>
 
-        <div>
-          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Filter</label>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as any)}
-            className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs dark:[background:rgba(60,60,65,0.8)] dark:[border:1px_solid_rgba(255,255,255,0.15)] dark:[color:#f3d9ea]"
-          >
-            <option value="all">All Types</option>
-            <option value="visual">Visual</option>
-            <option value="poems">Poems</option>
-            <option value="music">Music</option>
-            <option value="code">Code</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Depth: {depth}</label>
-          <input
-            type="range"
-            min="1"
-            max="4"
-            value={depth}
-            onChange={(e) => setDepth(Number(e.target.value))}
-            className="w-full"
-            style={{
-              background: 'linear-gradient(to right, #7dd87a, #52ca51)',
-              height: '6px',
-              borderRadius: '3px',
-              outline: 'none',
-              opacity: 0.8
-            }}
-          />
-        </div>
       </div>
 
       {/* Lineage Graph Area */}
@@ -574,9 +881,9 @@ const LineageTree = () => {
           </defs>
 
           {/* Organic Branch Connections */}
-          {connections.map((conn, index) => {
-            const fromNode = sampleNodes.find(n => n.id === conn.from);
-            const toNode = sampleNodes.find(n => n.id === conn.to);
+          {currentConnections.map((conn, index) => {
+            const fromNode = currentNodes.find(n => n.id === conn.from);
+            const toNode = currentNodes.find(n => n.id === conn.to);
             if (!fromNode || !toNode) return null;
 
             const toLevel = nodeLevelByY(toNode.y);
@@ -614,7 +921,7 @@ const LineageTree = () => {
           })}
 
           {/* Petal Nodes */}
-          {sampleNodes.map((node) => {
+          {currentNodes.map((node) => {
             const level = nodeLevelByY(node.y);
             const size = node.type === "original" ? 46 : level === 2 ? 36 : level === 3 ? 30 : level >= 4 ? 24 : 20;
             const rotation = node.type === "original" ? -6 : (node.x % 3) * 8 - 8; // slight organic tilt
@@ -624,7 +931,7 @@ const LineageTree = () => {
 
             const isHovered = hoveredNodeId === node.id;
             const isExpanded = expandedNodeId === node.id;
-            const scale = isExpanded ? 1.08 : isHovered ? 1.06 : 1;
+            const scale = isExpanded ? 1.08 : 1; // Remove hover scaling animation
 
             return (
               <g key={node.id} className="cursor-pointer" onClick={() => handleNodeClick(node)} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId(null)}>
@@ -637,7 +944,7 @@ const LineageTree = () => {
                   stroke={stroke}
                   strokeWidth={node.type === "original" ? 3 : 2.2}
                   style={{ 
-                    filter: isDark ? 'url(#roughen)' : `url(#roughen) ${isHovered ? 'url(#petalNeon)' : ''} drop-shadow(0 2px 6px rgba(120,200,120,0.15))`,
+                    filter: isDark ? 'url(#roughen)' : 'url(#roughen) drop-shadow(0 2px 6px rgba(120,200,120,0.15))',
                     boxShadow: isDark ? 'inset 0 1px 2px rgba(0,0,0,0.1)' : 'none'
                   }}
                 />
@@ -669,14 +976,6 @@ const LineageTree = () => {
                   </g>
                 )}
 
-                {/* Tooltip */}
-                {isHovered && (
-                  <g>
-                    <rect x={node.x + 18} y={node.y - size - 10} rx={8} ry={8} width={180} height={44} fill={isDark ? "rgba(70, 70, 75, 0.8)" : "#fff9f9"} stroke={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.06)"} strokeWidth={1} style={{ filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.3)) backdrop-filter: blur(10px)' }} />
-                    <text x={node.x + 28} y={node.y - size + 6} className="text-[11px]" fill={isDark ? "#f6e7ef" : "#4a4a4a"} fontWeight="bold">{node.title}</text>
-                    <text x={node.x + 28} y={node.y - size + 20} className="text-[10px]" fill={isDark ? "#b8aabf" : "#6b6b6b"} fontStyle="italic">by {node.author} • echoes {node.forks}</text>
-                  </g>
-                )}
 
                 {/* Labels - high-contrast pills for dark mode */}
                 {(() => {
@@ -710,6 +1009,140 @@ const LineageTree = () => {
           })}
         </svg>
       </div>
+
+      {/* Hover Seed Preview with Complete Details */}
+      {hoveredNodeId && (() => {
+        const node = currentNodes.find(n => n.id === hoveredNodeId);
+        if (!node) return null;
+        
+        // Determine if node is on left or right side of screen
+        const isOnLeftSide = node.x < window.innerWidth / 2;
+        const previewWidth = 384; // w-96 = 384px
+        
+        // Position closer to the leaf but not overlapping
+        let finalLeft;
+        if (isOnLeftSide) {
+          // Show to the right of the leaf, closer
+          finalLeft = node.x + 80;
+          // If it would go off screen, move it left
+          if (finalLeft + previewWidth > window.innerWidth - 20) {
+            finalLeft = window.innerWidth - previewWidth - 20;
+          }
+        } else {
+          // Show to the left of the leaf, closer
+          finalLeft = node.x - previewWidth - 80;
+          // If it would go off screen, move it right
+          if (finalLeft < 20) {
+            finalLeft = 20;
+          }
+        }
+        
+        return (
+          <div 
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: `${finalLeft}px`,
+              top: `${node.y}px`,
+              transform: `translateY(-50%)`
+            }}
+          >
+            <div className="w-96 max-h-[500px]">
+            <div className="relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent transition-all duration-hover ease-organic animate-organic-fade-in h-fit torn_container torn_left torn_right" style={{
+                '--torn-background-color': '#fef3c7',
+                '--torn-shadow-background-color': 'transparent',
+                '--torn-left-width': '10px',
+                '--torn-right-width': '10px'
+              } as any}>
+                <div></div>
+                <div className="relative">
+                  {/* Type icon indicator */}
+                  <div className="absolute top-3 left-3 z-10">
+                    <div className="w-8 h-8 rounded-full bg-accent-1/10 backdrop-blur-sm flex items-center justify-center border border-accent-1/20">
+                      <span className="text-accent-1">
+                        {(node as any).seedType === 'visual' ? '📷' : '📝'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {(node as any).seedType === 'visual' ? (
+                    /* Visual Seed - Image */
+                    <div className="relative overflow-hidden" style={{ aspectRatio: 'auto' }}>
+                      <img
+                        src={node.image}
+                        alt={node.title}
+                        className="w-full h-auto max-h-[300px] object-cover transition-transform duration-long ease-organic"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://via.placeholder.com/320x400/E8C9B0/1E1B18?text=${node.title.charAt(0)}`;
+                        }}
+                        onLoad={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          const aspectRatio = img.naturalWidth / img.naturalHeight;
+                          if (aspectRatio > 1) {
+                            img.style.aspectRatio = '16/9';
+                          } else {
+                            img.style.aspectRatio = '4/5';
+                          }
+                        }}
+                      />
+                      
+                      {/* Title overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-4">
+                        <div className="transform translate-y-0 transition-transform duration-300">
+                          <h3 className="font-display font-semibold text-white text-lg mb-1 line-clamp-2">
+                            {node.title}
+                          </h3>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Text Seed - Content */
+                    <div className="p-6 space-y-4 bg-transparent">
+                      <h3 className="font-display font-semibold text-lg leading-tight text-foreground">
+                        {node.title}
+                      </h3>
+                      <div className="prose prose-sm max-w-none text-muted-foreground">
+                        <p className="line-clamp-4 leading-relaxed whitespace-pre-wrap">
+                          {(node as any).content || 'No content available'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Content */}
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="font-handwritten">{node.author}</span>
+                      <span>{node.date}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      {node.forks > 0 && (
+                        <span className="flex items-center gap-1 text-accent-2">
+                          <span className="text-accent-2">🍴</span>
+                          {node.forks}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Hover actions */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-background via-background/95 to-transparent transform translate-y-0 transition-transform duration-reveal ease-organic border-t border-border/20">
+                    <div className="flex items-center gap-2 text-xs">
+                      <button className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent-1/20 hover:bg-accent-1/30 text-accent-1 border border-accent-1/30 transition-colors">
+                        <span className="text-accent-1">🍴</span>
+                        <span>Fork</span>
+                      </button>
+                      <button className="flex items-center gap-1 px-2 py-1 rounded-full bg-secondary/80 hover:bg-secondary text-foreground transition-colors">
+                        <span>👁</span>
+                        <span>View</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Node Preview Modal */}
       {selectedNode && (
@@ -767,11 +1200,12 @@ const LineageTree = () => {
         <div className="bg-card/90 backdrop-blur-paper rounded-lg p-4 shadow-paper dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)]">
           <h3 className="text-sm font-semibold mb-2 text-foreground dark:[color:#f2f2f2]">Tree Statistics</h3>
           <div className="space-y-1 text-xs text-muted-foreground dark:[color:#aaa5b5]">
-            <div>Total Nodes: {sampleNodes.length}</div>
-            <div>Original Seeds: {sampleNodes.filter(n => n.type === "original").length}</div>
-            <div>Total Forks: {sampleNodes.filter(n => n.type === "fork").length}</div>
-            <div>Max Depth: 4 levels</div>
-            <div>Total Connections: {connections.length}</div>
+            <div>Total Nodes: {currentNodes.length}</div>
+            <div>Original Seeds: {currentNodes.filter(n => n.type === "original").length}</div>
+            <div>Total Forks: {currentNodes.filter(n => n.type === "fork").length}</div>
+            <div>Max Depth: {Math.max(1, Math.max(...currentNodes.map(n => nodeLevelByY(n.y))))} levels</div>
+            <div>Total Connections: {currentConnections.length}</div>
+            <div>Mode: {mode === "demo" ? "Demo Data" : "Real Data"}</div>
           </div>
         </div>
       </div>

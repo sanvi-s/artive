@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, Filter, Eye, Clock, Download, Layout, SlidersHorizontal, Undo2, Redo2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Eye, Clock, Download, Layout, Undo2, Redo2, Play, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Navbar } from '@/components/Navbar';
 import { InkCursor } from '@/components/InkCursor';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useForklore } from '@/contexts/ForkloreContext';
 
 interface Seed {
   id: string;
@@ -20,6 +23,22 @@ interface Seed {
 interface TimelineViewProps {
   seeds?: Seed[];
   centerSeed?: Seed;
+}
+
+interface UserSeed {
+  _id: string;
+  title: string;
+  contentSnippet?: string;
+  type: string;
+  author: string;
+  forkCount: number;
+  thumbnailUrl?: string;
+  createdAt: string;
+}
+
+interface LineageData {
+  nodes: string[];
+  edges: Array<{ parent: string; child: string }>;
 }
 
 type SortOption = 'newest' | 'oldest' | 'most-remixed';
@@ -143,20 +162,38 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   seeds = sampleSeeds, 
   centerSeed = sampleCenterSeed
 }) => {
+  const { toast } = useToast();
+  const { isAuthenticated, user } = useAuth();
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [orientation, setOrientation] = useState<Orientation>('horizontal');
   const [scrollOffset, setScrollOffset] = useState(0);
   const [highlightedPath, setHighlightedPath] = useState<string[]>([]);
-  const [filter, setFilter] = useState<"all" | "visual" | "poems" | "music" | "code">("all");
-  const [depth, setDepth] = useState(4);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const hasAnimatedOnceRef = useRef<boolean>(false);
 
+  // New state for real data functionality
+  const [mode, setMode] = useState<"demo" | "real">("real");
+  const [userSeeds, setUserSeeds] = useState<UserSeed[]>([]);
+  const { selectedSeedId, setSelectedSeedId } = useForklore();
+  const [lineageData, setLineageData] = useState<LineageData | null>(null);
+  const [realSeeds, setRealSeeds] = useState<Seed[]>([]);
+  const [realCenterSeed, setRealCenterSeed] = useState<Seed | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Get current seeds and center seed based on mode
+  const currentSeeds = React.useMemo(() => {
+    return mode === "demo" ? seeds : realSeeds;
+  }, [mode, seeds, realSeeds]);
+
+  const currentCenterSeed = React.useMemo(() => {
+    return mode === "demo" ? centerSeed : realCenterSeed;
+  }, [mode, centerSeed, realCenterSeed]);
+
   // Sort seeds based on selected option
   const sortedSeeds = React.useMemo(() => {
-    const allSeeds = centerSeed ? [centerSeed, ...seeds] : seeds;
+    const allSeeds = currentCenterSeed ? [currentCenterSeed, ...currentSeeds] : currentSeeds;
     
     switch (sortBy) {
       case 'newest':
@@ -168,20 +205,28 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       default:
         return allSeeds;
     }
-  }, [seeds, centerSeed, sortBy]);
+  }, [currentSeeds, currentCenterSeed, sortBy]);
 
   // Generate timeline positions
   const generateTimelinePositions = (seeds: Seed[]) => {
     const positions: { [key: string]: { x: number; y: number; index: number } } = {};
-    const spacing = orientation === 'horizontal' ? 200 : 150;
-    const startOffset = orientation === 'horizontal' ? 100 : 100;
+    const spacing = orientation === 'horizontal' ? 250 : 150;
+    const startOffset = orientation === 'horizontal' ? 150 : 100;
     
-    seeds.forEach((seed, index) => {
+    // Sort seeds by date (oldest first, newest last) - LEFT to RIGHT
+    const sortedSeeds = [...seeds].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateA - dateB; // Oldest to newest (left to right)
+    });
+    
+    sortedSeeds.forEach((seed, index) => {
       if (orientation === 'horizontal') {
+        // Position chronologically from left (oldest) to right (newest)
         positions[seed.id] = { 
           x: startOffset + index * spacing, 
-          y: 300 + Math.sin(index * 0.5) * 50, // Slight wave
-          index 
+          y: 300 + Math.sin(index * 0.3) * 40, // Slight wave for visual interest
+          index: index
         };
       } else {
         positions[seed.id] = { 
@@ -195,7 +240,28 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     return positions;
   };
 
-  const positions = generateTimelinePositions(sortedSeeds);
+  // Sort seeds chronologically for timeline display
+  const chronologicallySortedSeeds = React.useMemo(() => {
+    const sorted = [...sortedSeeds].sort((a, b) => {
+      // Use createdAt if available (more precise), otherwise fall back to date
+      const timeA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : new Date(a.date).getTime();
+      const timeB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : new Date(b.date).getTime();
+      return timeA - timeB; // Oldest to newest (left to right)
+    });
+    
+    // Debug logging to see the chronological order
+    console.log('Timeline chronological order:', sorted.map(s => ({
+      id: s.id,
+      title: s.title,
+      date: s.date,
+      createdAt: (s as any).createdAt,
+      generation: s.generation
+    })));
+    
+    return sorted;
+  }, [sortedSeeds]);
+
+  const positions = generateTimelinePositions(chronologicallySortedSeeds);
   const contentWidth = React.useMemo(() => {
     if (orientation !== 'horizontal') return 0;
     const xs = Object.values(positions).map((p) => p.x);
@@ -204,13 +270,13 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   // Stats for footer card
   const timelineStats = React.useMemo(() => {
-    const totalNodes = (centerSeed ? 1 : 0) + seeds.length;
-    const originalSeeds = centerSeed ? 1 : 0;
-    const totalForks = seeds.filter(s => (s.generation ?? 0) > 0).length;
-    const maxDepth = Math.max(1, seeds.reduce((m, s) => Math.max(m, s.generation ?? 0), 0) + 1);
-    const totalConnections = seeds.filter(s => !!s.parentId).length;
+    const totalNodes = (currentCenterSeed ? 1 : 0) + currentSeeds.length;
+    const originalSeeds = currentCenterSeed ? 1 : 0;
+    const totalForks = currentSeeds.filter(s => (s.generation ?? 0) > 0).length;
+    const maxDepth = Math.max(1, currentSeeds.reduce((m, s) => Math.max(m, s.generation ?? 0), 0) + 1);
+    const totalConnections = currentSeeds.filter(s => !!s.parentId).length;
     return { totalNodes, originalSeeds, totalForks, maxDepth, totalConnections };
-  }, [seeds, centerSeed]);
+  }, [currentSeeds, currentCenterSeed]);
 
   // Floating particles with timeline drift
   const FloatingParticles = () => (
@@ -236,17 +302,19 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     </div>
   );
 
-  // Hand-drawn timeline line
-  const TimelineLine = () => {
-    if (sortedSeeds.length < 2) return null;
+  // Hand-drawn timeline line - connects all seeds in sequence
+  const TimelineLine = React.useMemo(() => {
+    if (chronologicallySortedSeeds.length < 2) return null;
 
-    const points = sortedSeeds.map(seed => positions[seed.id]).filter(Boolean);
+    const points = chronologicallySortedSeeds.map(seed => positions[seed.id]).filter(Boolean);
     
     return (
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+      <svg key="timeline-line" className="absolute inset-0 w-full h-full pointer-events-none">
         <path
+          key="timeline-path"
           d={points.reduce((path, point, index) => {
             if (index === 0) return `M ${point.x} ${point.y}`;
+            
             
             // Add slight hand-drawn wobble
             const wobbleX = Math.sin(index * 0.3) * 3;
@@ -258,50 +326,20 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           strokeWidth="2.4"
           fill="none"
           className="transition-all duration-1000 ease-organic"
-          style={hasAnimatedOnceRef.current ? { strokeDasharray: '5,5' } : {
-            strokeDasharray: '5,5',
-            animation: 'brush-reveal 2s ease-out forwards'
-          }}
+          style={{ strokeDasharray: '5,5' }}
         />
       </svg>
+
     );
-  };
+  }, [sortedSeeds, positions]);
 
   // Connection lines for lineage paths
-  const LineageConnections = () => (
-    <svg className="absolute inset-0 w-full h-full pointer-events-none">
-      {sortedSeeds.map(seed => {
-        if (!seed.parentId || !positions[seed.id] || !positions[seed.parentId]) return null;
-        
-        const start = positions[seed.parentId];
-        const end = positions[seed.id];
-        const isHighlighted = highlightedPath.includes(seed.id) || highlightedPath.includes(seed.parentId);
-        
-        return (
-          <line
-            key={`${seed.parentId}-${seed.id}`}
-            x1={start.x}
-            y1={start.y}
-            x2={end.x}
-            y2={end.y}
-            stroke="rgba(139,69,19,0.5)"
-            strokeWidth="1.2"
-            strokeDasharray="3,3"
-            className="transition-all duration-500"
-            style={{
-              opacity: isHighlighted ? 0.8 : 0.2,
-              strokeWidth: isHighlighted ? '2' : '1.2'
-            }}
-          />
-        );
-      })}
-    </svg>
-  );
+ 
 
   // Date markers
   const DateMarkers = () => (
     <div className="absolute inset-0 pointer-events-none">
-      {sortedSeeds.map((seed, index) => {
+      {chronologicallySortedSeeds.map((seed, index) => {
         const position = positions[seed.id];
         if (!position) return null;
         
@@ -345,7 +383,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         style={{
           left: position.x,
           top: position.y,
-          transform: `translate(-50%, -50%) ${isHovered ? 'scale(1.05)' : 'scale(1)'}`,
+          transform: `translate(-50%, -50%) scale(1)`, // Remove hover scaling animation
           animationDelay: `${position.index * 0.1}s`
         }}
         onMouseEnter={() => {
@@ -411,18 +449,181 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           )}
         </div>
 
-        {/* Tooltip */}
-        {isHovered && (
-          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-card/95 backdrop-blur-sm rounded-lg border border-border/20 shadow-lg text-sm whitespace-nowrap z-30">
-            <div className="font-medium text-foreground">{seed.title}</div>
-            <div className="text-muted-foreground text-xs">by {seed.author}</div>
-            <div className="text-muted-foreground text-xs">{new Date(seed.date).toLocaleDateString()}</div>
-          </div>
-        )}
       </div>
 
     );
   };
+
+  // Fetch user seeds when authenticated
+  useEffect(() => {
+    const fetchUserSeeds = async () => {
+      if (!isAuthenticated || !user) return;
+
+      try {
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        const token = localStorage.getItem("token");
+        
+        if (!token) return;
+
+        // Fetch user's seeds using the actual user ID
+        const seedsRes = await fetch(`${apiBase}/api/seeds?author=${encodeURIComponent(user.id)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (seedsRes.ok) {
+          const seedsData = await seedsRes.json();
+          setUserSeeds(seedsData.items || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user seeds:', error);
+      }
+    };
+
+    fetchUserSeeds();
+  }, [isAuthenticated, user]);
+
+  // Fetch lineage data when seed is selected
+  const fetchLineageData = async (seedId: string) => {
+    if (!seedId) return;
+    
+    setLoading(true);
+    try {
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem("token");
+      
+      const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=3`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setLineageData(data);
+        buildRealTimeline(data, seedId);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch lineage data",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch lineage data:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to fetch lineage data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Build real timeline from lineage data
+  const buildRealTimeline = async (lineageData: LineageData, rootSeedId: string) => {
+    try {
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem("token");
+      
+      // Fetch details for all nodes including their forks
+      const nodeDetails = await Promise.all(
+        lineageData.nodes.map(async (nodeId) => {
+          const res = await fetch(`${apiBase}/api/seeds/${nodeId}`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            // The API returns { seed, forks }, so we need both
+            return { seed: data.seed, forks: data.forks || [] };
+          }
+          return null;
+        })
+      );
+
+      // Filter out failed requests and build seeds
+      const validNodeDetails = nodeDetails.filter(Boolean);
+      const rootNodeDetail = validNodeDetails.find(nodeDetail => nodeDetail.seed._id === rootSeedId);
+      
+      if (rootNodeDetail) {
+        const rootSeed = rootNodeDetail.seed;
+        setRealCenterSeed({
+          id: rootSeed._id,
+          title: rootSeed.title,
+          author: rootSeed.author?.displayName || rootSeed.author?.username || 'Unknown',
+          date: new Date(rootSeed.createdAt).toISOString().split('T')[0],
+          type: rootSeed.type === 'poem' ? 'text' : 'visual',
+          generation: 0,
+          children: [],
+          // Add image and content for hover preview
+          image: rootSeed.thumbnailUrl,
+          content: rootSeed.contentSnippet || rootSeed.contentFull
+        } as any);
+      }
+
+      // Build other seeds including forks
+      const otherSeeds: Seed[] = [];
+      
+      validNodeDetails.forEach((nodeDetail) => {
+        const seed = nodeDetail.seed;
+        if (seed._id !== rootSeedId) {
+          // Find parent from edges
+          const edge = lineageData.edges.find(e => e.child === seed._id);
+          const generation = edge ? 1 : 0; // Simplified generation calculation
+          
+          otherSeeds.push({
+            id: seed._id,
+            title: seed.title,
+            author: seed.author?.displayName || seed.author?.username || 'Unknown',
+            date: new Date(seed.createdAt).toISOString().split('T')[0],
+            createdAt: seed.createdAt, // Add full timestamp for proper sorting
+            type: seed.type === 'poem' ? 'text' : 'visual',
+            generation: generation,
+            parentId: edge?.parent,
+            // Add content for hover preview
+            content: seed.contentFull || seed.contentSnippet || '',
+            children: []
+          } as any);
+        }
+
+        // Add forks as separate timeline items
+        nodeDetail.forks.forEach((fork: any) => {
+          const originalContent = seed.contentFull || seed.contentSnippet || '';
+          const forkContent = fork.contentDelta || fork.summary || '';
+          const combinedContent = originalContent && forkContent
+            ? `${originalContent}\n${forkContent}`
+            : (forkContent || originalContent);
+          
+            
+          otherSeeds.push({
+            id: fork._id,
+            title: fork.summary || 'Fork',
+            author: fork.author?.displayName || fork.author?.username || 'Anonymous',
+            date: new Date(fork.createdAt).toISOString().split('T')[0],
+            createdAt: fork.createdAt, // Add full timestamp for proper sorting
+            type: fork.type === 'poem' ? 'text' : 'visual',
+            generation: 1, // Forks are always generation 1
+            parentId: fork.parentSeed?._id || seed._id,
+            // Add content for hover preview - combined original and fork content
+            content: combinedContent,
+            contentSnippet: combinedContent.slice(0, 200),
+            // Add image for visual forks
+            image: fork.thumbnailUrl || fork.imageUrl,
+            thumbnailUrl: fork.thumbnailUrl || fork.imageUrl,
+            children: []
+          } as any);
+        });
+      });
+
+      setRealSeeds(otherSeeds);
+    } catch (error) {
+      console.error('Failed to build real timeline:', error);
+    }
+  };
+
+  // Auto-load lineage data when selectedSeedId changes
+  useEffect(() => {
+    if (selectedSeedId && mode === "real") {
+      fetchLineageData(selectedSeedId);
+    }
+  }, [selectedSeedId, mode]);
 
   // Ensure one-time animations only run on first mount
   useEffect(() => {
@@ -476,11 +677,20 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           <div className="font-display text-[1rem]" style={{ color: '#b35e78' }}>
             your seed, their forklore.
           </div>
+          {mode === "real" && (
+            <div className="text-xs text-muted-foreground mt-2 max-w-md">
+              {selectedSeedId ? (
+                <span>Showing timeline for your selected seed. Hover over nodes to see connections.</span>
+              ) : (
+                <span>Select "Real" mode and choose one of your seeds to see its actual timeline.</span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Lineage Graph Area */}
-      <div className="flex-1 relative overflow-hidden pt-8">
+      <div className="flex-1 relative overflow-visible pt-8">
         {/* Light mode subtle radial background */}
         <div className="pointer-events-none absolute inset-0 block dark:hidden" style={{
           background: 'radial-gradient(800px 500px at 50% 30%, rgba(255,240,242,0.55), transparent 70%)',
@@ -529,14 +739,6 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           <span className="sr-only">Layout Options</span>
         </Button>
         <Button variant="ghost" size="icon">
-          <Filter className="h-5 w-5" />
-          <span className="sr-only">Filter</span>
-        </Button>
-        <Button variant="ghost" size="icon">
-          <SlidersHorizontal className="h-5 w-5" />
-          <span className="sr-only">Depth Slider</span>
-        </Button>
-        <Button variant="ghost" size="icon">
           <Undo2 className="h-5 w-5" />
           <span className="sr-only">Undo</span>
         </Button>
@@ -546,23 +748,6 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         </Button>
       </div>
 
-      {/* Filter dropdown */}
-      <div className="absolute top-32 right-6 z-10">
-        <div className="bg-card/50 backdrop-blur-sm rounded-lg p-2 border border-border/20">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="bg-transparent text-sm text-foreground border-none outline-none"
-            >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="most-remixed">Most Remixed</option>
-            </select>
-          </div>
-        </div>
-      </div>
 
       {/* Orientation toggle */}
       <div className="absolute top-32 right-32 z-10">
@@ -623,27 +808,224 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           <FloatingParticles />
           
           {/* Timeline line */}
-          <TimelineLine />
-          
-          {/* Lineage connections */}
-          <LineageConnections />
+          {TimelineLine}
           
           {/* Date markers */}
           <DateMarkers />
 
           <div ref={containerRef} className="relative w-full h-full overflow-visible">
             {/* Seed cards */}
-            {sortedSeeds.map(seed => 
+            {chronologicallySortedSeeds.map(seed => 
               positions[seed.id] && (
                 <SeedCard key={seed.id} seed={seed} position={positions[seed.id]} />
               )
             )}
           </div>
+
+          {/* Hover Seed Preview with Complete Details */}
+          {hoveredNode && (() => {
+            const seed = chronologicallySortedSeeds.find(s => s.id === hoveredNode);
+            if (!seed || !positions[seed.id]) return null;
+            const position = positions[seed.id];
+            
+            // Determine if seed is on left or right side of screen
+            const isOnLeftSide = position.x < window.innerWidth / 2;
+            const previewWidth = 384; // w-96 = 384px
+            
+            // Position closer to the leaf but not overlapping
+            let finalLeft;
+            if (isOnLeftSide) {
+              // Show to the right of the leaf, closer
+              finalLeft = position.x + 80;
+              // If it would go off screen, move it left
+              if (finalLeft + previewWidth > window.innerWidth - 20) {
+                finalLeft = window.innerWidth - previewWidth - 20;
+              }
+            } else {
+              // Show to the left of the leaf, closer
+              finalLeft = position.x - previewWidth - 80;
+              // If it would go off screen, move it right
+              if (finalLeft < 20) {
+                finalLeft = 20;
+              }
+            }
+            
+            return (
+              <div 
+                className="fixed z-50 pointer-events-none"
+                style={{
+                  left: `${finalLeft}px`,
+                  top: `${position.y}px`,
+                  transform: `translateY(-50%)`
+                }}
+              >
+                <div className="w-96 max-h-[500px]">
+                <div className="relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent transition-all duration-hover ease-organic animate-organic-fade-in h-fit torn_container torn_left torn_right" style={{
+                    '--torn-background-color': '#fef3c7',
+                    '--torn-shadow-background-color': 'transparent',
+                    '--torn-left-width': '10px',
+                    '--torn-right-width': '10px'
+                  } as any}>
+                    <div></div>
+                    <div className="relative">
+                      {/* Type icon indicator */}
+                      <div className="absolute top-3 left-3 z-10">
+                        <div className="w-8 h-8 rounded-full bg-accent-1/10 backdrop-blur-sm flex items-center justify-center border border-accent-1/20">
+                          <span className="text-accent-1">
+                            {seed.type === 'visual' ? '📷' : '📝'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {seed.type === 'visual' ? (
+                        /* Visual Seed - Image */
+                        <div className="relative overflow-hidden" style={{ aspectRatio: 'auto' }}>
+                          <img
+                            src={(seed as any).image || (seed as any).thumbnailUrl || `https://via.placeholder.com/320x400/E8C9B0/1E1B18?text=${seed.title.charAt(0)}`}
+                            alt={seed.title}
+                            className="w-full h-auto max-h-[300px] object-cover transition-transform duration-long ease-organic"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://via.placeholder.com/320x400/E8C9B0/1E1B18?text=${seed.title.charAt(0)}`;
+                            }}
+                            onLoad={(e) => {
+                              const img = e.target as HTMLImageElement;
+                              const aspectRatio = img.naturalWidth / img.naturalHeight;
+                              if (aspectRatio > 1) {
+                                img.style.aspectRatio = '16/9';
+                              } else {
+                                img.style.aspectRatio = '4/5';
+                              }
+                            }}
+                          />
+                          
+                          {/* Title overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-4">
+                            <div className="transform translate-y-0 transition-transform duration-300">
+                              <h3 className="font-display font-semibold text-white text-lg mb-1 line-clamp-2">
+                                {seed.title}
+                              </h3>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Text Seed - Content */
+                        <div className="p-6 space-y-4 bg-transparent">
+                          <h3 className="font-display font-semibold text-lg leading-tight text-foreground">
+                            {seed.title}
+                          </h3>
+                          <div className="prose prose-sm max-w-none text-muted-foreground">
+                            <p className="line-clamp-4 leading-relaxed whitespace-pre-wrap">
+                              {(seed as any).content || 'No content available'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Content */}
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span className="font-handwritten">{seed.author}</span>
+                          <span>{new Date(seed.date).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          {(seed as any).forks > 0 && (
+                            <span className="flex items-center gap-1 text-accent-2">
+                              <span className="text-accent-2">🍴</span>
+                              {(seed as any).forks}
+                            </span>
+                          )}
+                          {seed.generation !== undefined && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-700 dark:bg-pink-900/20 dark:text-pink-300">
+                              {seed.generation === 0 ? 'Original' : `Gen ${seed.generation}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
       {/* Right Sidebar Controls */}
-      <div className="absolute top-16 right-4 z-20 rounded-lg p-4 space-y-3 dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)] bg-background/80 backdrop-blur-sm border border-border/20">
+      <div className="absolute top-16 right-4 z-20 rounded-lg p-4 space-y-3 dark:[background:rgba(60,60,65,0.8)] dark:[backdrop-filter:blur(10px)] dark:[border:1px_solid_rgba(255,255,255,0.15)] bg-background/80 backdrop-blur-sm border border-border/20 w-64 min-h-[400px]">
+        {/* Mode Selection */}
+        <div>
+          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Mode</label>
+          <div className="flex gap-1">
+            <Button
+              variant={mode === "demo" ? "hero" : "ghost"}
+              size="sm"
+              onClick={() => setMode("demo")}
+              className="text-xs flex items-center gap-1"
+              style={mode === "demo" ? {
+                background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+                border: 'none',
+                color: '#f2f2f2',
+                boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+              } : {}}
+            >
+              <Play className="h-3 w-3" />
+              Demo
+            </Button>
+            <Button
+              variant={mode === "real" ? "hero" : "ghost"}
+              size="sm"
+              onClick={() => setMode("real")}
+              className="text-xs flex items-center gap-1"
+              style={mode === "real" ? {
+                background: 'linear-gradient(90deg, #7dd87a, #52ca51)',
+                border: 'none',
+                color: '#f2f2f2',
+                boxShadow: '0 0 12px rgba(120,200,120,0.3)'
+              } : {}}
+            >
+              <Database className="h-3 w-3" />
+              Real
+            </Button>
+          </div>
+        </div>
+
+        {/* Seed Selection (only in real mode) */}
+        {mode === "real" && (
+          <div>
+            <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Select Your Seed</label>
+            {userSeeds.length > 0 ? (
+              <select
+                value={selectedSeedId}
+                onChange={(e) => {
+                  setSelectedSeedId(e.target.value);
+                  if (e.target.value) {
+                    fetchLineageData(e.target.value);
+                  }
+                }}
+                className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs dark:[background:rgba(60,60,65,0.8)] dark:[border:1px_solid_rgba(255,255,255,0.15)] dark:[color:#f3d9ea]"
+                disabled={loading}
+              >
+                <option value="">Choose a seed...</option>
+                {userSeeds.map((seed) => (
+                  <option key={seed._id} value={seed._id}>
+                    {seed.title} ({seed.forkCount} forks)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="text-xs text-muted-foreground p-2 border border-border rounded-md">
+                {isAuthenticated ? "No seeds found. Create some seeds first!" : "Please log in to see your seeds."}
+              </div>
+            )}
+            {loading && (
+              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full"></div>
+                Loading timeline...
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Navigation */}
         <div>
           <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Layout</label>
@@ -686,39 +1068,6 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           </div>
         </div>
 
-        <div>
-          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Filter</label>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as any)}
-            className="w-full bg-background border border-border rounded-md px-2 py-1 text-xs dark:[background:rgba(60,60,65,0.8)] dark:[border:1px_solid_rgba(255,255,255,0.15)] dark:[color:#f3d9ea]"
-          >
-            <option value="all">All Types</option>
-            <option value="visual">Visual</option>
-            <option value="poems">Poems</option>
-            <option value="music">Music</option>
-            <option value="code">Code</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="text-xs font-medium mb-2 block text-muted-foreground dark:[color:#b0a0b8]">Depth: {depth}</label>
-          <input
-            type="range"
-            min="1"
-            max="4"
-            value={depth}
-            onChange={(e) => setDepth(Number(e.target.value))}
-            className="w-full"
-            style={{
-              background: 'linear-gradient(to right, #7dd87a, #52ca51)',
-              height: '6px',
-              borderRadius: '3px',
-              outline: 'none',
-              opacity: 0.8
-            }}
-          />
-        </div>
       </div>
 
       {/* Timeline Statistics */}
@@ -731,6 +1080,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             <div>Total Forks: {timelineStats.totalForks}</div>
             <div>Max Depth: {timelineStats.maxDepth} levels</div>
             <div>Total Connections: {timelineStats.totalConnections}</div>
+            <div>Mode: {mode === "demo" ? "Demo Data" : "Real Data"}</div>
           </div>
         </div>
       </div>

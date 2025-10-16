@@ -12,19 +12,22 @@ interface ForkModalProps {
   seedId: string | null;
   seedType?: 'text' | 'visual' | 'music' | 'code' | 'other';
   initialText?: string;
+  onForkCreated?: () => void;
 }
 
-export const ForkModal = ({ isOpen, onClose, seedId, seedType, initialText }: ForkModalProps) => {
+export const ForkModal = ({ isOpen, onClose, seedId, seedType, initialText, onForkCreated }: ForkModalProps) => {
   const [summary, setSummary] = useState("");
-  const [text, setText] = useState(initialText || "");
+  const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    setText(initialText || "");
-    setSummary("");
-    setFile(null);
+    if (isOpen) {
+      setText(initialText || "");
+      setSummary("");
+      setFile(null);
+    }
   }, [initialText, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,6 +63,7 @@ export const ForkModal = ({ isOpen, onClose, seedId, seedType, initialText }: Fo
         throw new Error(msg || "Failed to create fork");
       }
       toast({ title: "Fork created", description: "Your fork has been published." });
+      onForkCreated?.();
       onClose();
     } catch (err: any) {
       toast({ title: "Fork Error", description: err.message || "Something went wrong", variant: "destructive" });

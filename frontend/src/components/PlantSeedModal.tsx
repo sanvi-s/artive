@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SeedCreationData } from "@/types/seed";
 import { X, Plus, Type, Image, Music, Code, Quote, Sparkles } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 
 interface PlantSeedModalProps {
   children: React.ReactNode;
@@ -23,6 +26,8 @@ const seedTypes = [
 const categories = ['Poetry', 'Reflections', 'Visual', 'Music', 'Code', 'Random'];
 
 export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) => {
+  const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'text' | 'visual' | 'music' | 'code'>('text');
   const [formData, setFormData] = useState<SeedCreationData>({
@@ -39,6 +44,18 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const handleOpenModal = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to plant seeds.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setIsOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,8 +78,19 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
         const form = new FormData();
         form.append('file', imageFile);
         form.append('folder', 'artive/seeds');
-        try { console.debug('[PlantSeedModal] uploading to', `${apiBase}/api/uploads`, { folder: 'artive/seeds', fileName: imageFile?.name }); } catch {}
-        const res = await fetch(`${apiBase}/api/uploads`, { method: 'POST', body: form });
+        try { console.debug('[PlantSeedModal] uploading to', `${apiBase}/api/uploads`, { folder: 'artive/seeds', fileName: imageFile?.name, size: imageFile?.size }); } catch {}
+        
+        // Add timeout to prevent hanging requests
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
+        
+        const res = await fetch(`${apiBase}/api/uploads`, { 
+          method: 'POST', 
+          body: form,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
         const raw = await res.text();
         let data: any = {};
         try { data = raw ? JSON.parse(raw) : {}; } catch {}
@@ -73,8 +101,23 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
         // ensure we never save /api/uploads path by mistake
         if (String(data.url).startsWith('/api/uploads')) throw new Error('Upload did not return a public URL');
         finalData.image = data.url as string;
-      } catch (err) {
+      } catch (err: any) {
         try { console.error('[PlantSeedModal] upload exception', err); } catch {}
+        
+        // Show user-friendly error message
+        let errorMessage = 'Upload failed. Please try again.';
+        if (err.name === 'AbortError') {
+          errorMessage = 'Upload timed out. Please try with a smaller image.';
+        } else if (err.message?.includes('timeout')) {
+          errorMessage = 'Upload timed out. Please try with a smaller image.';
+        } else if (err.message?.includes('too large')) {
+          errorMessage = 'Image is too large. Please use a smaller image (max 10MB).';
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+        
+        // You could show a toast notification here if available
+        alert(errorMessage);
         setUploading(false);
         return;
       } finally {
@@ -147,7 +190,7 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
+      <DialogTrigger asChild onClick={handleOpenModal}>
         {children}
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -289,6 +332,11 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
                 <Label htmlFor="imageFile" className="text-sm font-medium">Upload image</Label>
                 <Input id="imageFile" type="file" accept="image/*" className="torn-edge-soft" required onChange={(e) => {
                   const f = e.target.files?.[0] || null;
+                  if (f && f.size > 10 * 1024 * 1024) {
+                    alert('File is too large. Please select an image smaller than 10MB.');
+                    e.target.value = '';
+                    return;
+                  }
                   setImageFile(f);
                   setImagePreview(f ? URL.createObjectURL(f) : null);
                 }} />
@@ -310,7 +358,12 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
                   className="torn-edge-soft min-h-[80px]"
                 />
               </div>
-              {uploading && <div className="text-xs text-muted-foreground">Uploading image...</div>}
+              {uploading && (
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <div className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full"></div>
+                  Uploading image... This may take a moment for large files.
+                </div>
+              )}
             </div>
           )}
 

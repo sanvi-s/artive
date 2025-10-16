@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/Navbar";
 
 const Login = () => {
@@ -11,6 +12,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,9 +41,12 @@ const Login = () => {
         const msg = data?.error?.message || (raw ? raw.slice(0, 200) : `HTTP ${res.status} ${res.statusText}`);
         throw new Error(msg || "Login failed");
       }
-      if (data?.token) localStorage.setItem("token", data.token);
-      toast({ title: "Welcome back!", description: "You've successfully logged in." });
-      navigate("/");
+      if (data?.token && data?.user) {
+        login(data.token, data.user);
+        navigate("/");
+      } else {
+        throw new Error("Invalid response from server");
+      }
     } catch (err: any) {
       toast({ title: "Login Error", description: err.message || "Something went wrong", variant: "destructive" });
     } finally {
