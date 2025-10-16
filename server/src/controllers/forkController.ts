@@ -11,7 +11,14 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
   try {
     await session.withTransaction(async () => {
       await Fork.create([{ parentSeed: id, author: req.userId, contentDelta, summary }], { session });
-      await Seed.findByIdAndUpdate(id, { $inc: { forkCount: 1 } }, { session });
+      
+      // Check if the parent is a seed or a fork
+      const seed = await Seed.findById(id).session(session);
+      if (seed) {
+        // Parent is a seed, increment its forkCount
+        await Seed.findByIdAndUpdate(id, { $inc: { forkCount: 1 } }, { session });
+      }
+      // If parent is a fork, we don't need to increment anything since forks don't have forkCount
     });
     res.status(201).json({ ok: true });
   } finally {
@@ -19,20 +26,49 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
   }
 }
 
-export async function listForks(req: Request, res: Response) {
+export async function getFork(req: Request, res: Response) {
   const { id } = req.params as { id: string };
+  if (!mongoose.isValidObjectId(id)) {
+    return res.status(400).json({ error: { message: 'Invalid fork id' } });
+  }
+
+  const fork = await Fork.findById(id)
+    .populate('author', 'username displayName avatarUrl')
+    .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull createdAt')
+    .lean();
+
+  if (!fork) {
+    return res.status(404).json({ error: { message: 'Fork not found' } });
+  }
+
+  res.json({ fork });
+}
+
+export async function listForks(req: Request, res: Response) {
+  const { id } = req.params as { id?: string };
   const page = Math.max(1, Number(req.query.page || 1));
   const limit = Math.min(50, Math.max(1, Number(req.query.limit || 10)));
   const skip = (page - 1) * limit;
+
+  const filter: any = {};
+  if (typeof id === 'string' && id.length > 0) {
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: { message: 'Invalid seed id' } });
+    }
+    filter.parentSeed = id;
+  }
+
   const [items, total] = await Promise.all([
-    Fork.find({ parentSeed: id })
+    Fork.find(filter)
       .populate('author', 'username displayName avatarUrl')
+      .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull createdAt')
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
       .lean(),
-    Fork.countDocuments({ parentSeed: id }),
+    Fork.countDocuments(filter),
   ]);
+
   res.json({ page, limit, total, items });
 }
 
@@ -48,15 +84,35 @@ export async function listForksInspiredByUser(req: Request, res: Response) {
   const seedIds = seeds.map(s => s._id);
   if (seedIds.length === 0) return res.json({ page, limit, total: 0, items: [] });
 
+  // Recursively find all forks in the lineage (including forks of forks)
+  const getAllInspiredForks = async (parentIds: string[], depth = 0): Promise<string[]> => {
+    if (depth > 5) return []; // Prevent infinite recursion
+    
+    const forks = await Fork.find({ parentSeed: { $in: parentIds } }, { _id: 1 }).lean();
+    const forkIds = forks.map(f => String(f._id));
+    
+    if (forkIds.length === 0) return [];
+    
+    // Recursively find forks of these forks
+    const nestedForkIds = await getAllInspiredForks(forkIds, depth + 1);
+    
+    return [...forkIds, ...nestedForkIds];
+  };
+
+  const allInspiredForkIds = await getAllInspiredForks(seedIds);
+  
+  // Get all forks that were inspired by the user's seeds (including nested forks)
+  const allParentIds = [...seedIds, ...allInspiredForkIds];
+
   const [items, total] = await Promise.all([
-    Fork.find({ parentSeed: { $in: seedIds } })
+    Fork.find({ parentSeed: { $in: allParentIds } })
       .populate('author', 'username displayName avatarUrl')
       .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull')
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
       .lean(),
-    Fork.countDocuments({ parentSeed: { $in: seedIds } }),
+    Fork.countDocuments({ parentSeed: { $in: allParentIds } }),
   ]);
 
   res.json({ page, limit, total, items });

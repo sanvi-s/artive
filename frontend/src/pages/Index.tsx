@@ -7,18 +7,14 @@ import { PlantSeedModal } from "@/components/PlantSeedModal";
 import { SeedViewModal } from "@/components/SeedViewModal";
 import { ForkModal } from "@/components/ForkModal";
 import { Link } from "react-router-dom";
-import { allSeeds } from "@/data/sampleSeeds";
 import { SeedCreationData, Seed } from "@/types/seed";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import heroCollage from "@/assets/hero-collage.jpg";
 import seed1 from "@/assets/seed-1.jpg";
 import seed2 from "@/assets/seed-2.jpg";
 import seed4 from "@/assets/seed-4.jpg";
-
-// Use the mixed seeds from sample data
-const featuredSeeds = allSeeds.slice(0, 12);
 
 const shards = [
   {
@@ -51,6 +47,8 @@ const Index = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const [forkSeedMeta, setForkSeedMeta] = useState<{ id: string; type: 'text' | 'visual' | 'music' | 'code' | 'other'; initialText?: string } | null>(null);
+  const [featuredSeeds, setFeaturedSeeds] = useState<Seed[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const handlePlantSeed = async (seedData: SeedCreationData) => {
     if (!isAuthenticated) {
@@ -99,8 +97,55 @@ const Index = () => {
     }
   };
 
+  // Fetch only seeds from API
+  useEffect(() => {
+    const fetchSeeds = async () => {
+      try {
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        const token = localStorage.getItem("token");
+        
+        // Fetch seeds only
+        const seedsRes = await fetch(`${apiBase}/api/seeds?limit=12`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+        });
+        
+        if (seedsRes.ok) {
+          const seedsData = await seedsRes.json();
+          const seeds: Seed[] = (seedsData.items || []).map((s: any) => ({
+            id: s._id,
+            title: s.title,
+            author: s.author?.displayName || s.author?.username || 'Anonymous',
+            authorId: s.author?._id,
+            time: s.createdAt,
+            createdAt: s.createdAt,
+            forks: s.forkCount || 0,
+            sparks: 0,
+            category: 'general',
+            tags: [],
+            type: s.type === 'poem' ? 'text' : s.type,
+            content: s.contentFull || s.contentSnippet || '',
+            excerpt: s.contentSnippet || s.title,
+            image: s.thumbnailUrl || '',
+            isForked: false
+          }));
+          
+          // Sort by newest first (most recent first)
+          seeds.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          setFeaturedSeeds(seeds.slice(0, 12));
+        }
+      } catch (error) {
+        console.error('Failed to fetch seeds:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSeeds();
+  }, []);
+
   const handleViewSeed = (seedId: string) => {
-    const seed = allSeeds.find(s => s.id === seedId);
+    const seed = featuredSeeds.find(s => s.id === seedId);
     if (seed) {
       setSelectedSeed(seed);
       setIsViewModalOpen(true);
@@ -108,7 +153,7 @@ const Index = () => {
   };
 
   const handleForkSeed = (seedId: string) => {
-    const seed = allSeeds.find(s => s.id === seedId);
+    const seed = featuredSeeds.find(s => s.id === seedId);
     if (!seed) return;
     if (seed.type === 'text') {
       setForkSeedMeta({ id: seedId, type: 'text', initialText: seed.content });
@@ -139,6 +184,14 @@ const Index = () => {
             backgroundPosition: "center",
           }}
         />
+        
+        {/* Vignette gradient overlay */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(circle at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.4) 100%)'
+          }}
+        />
 
         <div className="container mx-auto px-4 md:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
@@ -160,7 +213,13 @@ const Index = () => {
                     Artive
                   </h1>
                 </div>
-                <p className="text-md italic text-muted-foreground animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
+                <p 
+                  className="text-xl md:text-2xl italic animate-fade-in-up text-foreground/90" 
+                  style={{ 
+                    animationDelay: "0.1s",
+                    fontFamily: 'serif'
+                  }}
+                >
                   the art of forgotten things
                 </p>
               </div>
@@ -173,12 +232,28 @@ const Index = () => {
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-fade-in-up" style={{ animationDelay: "0.3s" }}>
                 <PlantSeedModal onPlantSeed={handlePlantSeed}>
-                  <Button variant="hero" size="lg">
+                  <Button 
+                    size="lg"
+                    className="shadow-[0_0_10px_rgba(255,255,255,0.2)] hover:brightness-110 transition-all"
+                    style={{
+                      background: 'linear-gradient(90deg, #b38bff 0%, #f9c6b8 50%, #ffe4a3 100%)',
+                      border: 'none',
+                      color: '#1a1a1a'
+                    }}
+                  >
                     Share your unfinished idea
                   </Button>
                 </PlantSeedModal>
                 <Link to="/explore">
-                  <Button variant="hero-ghost" size="lg">
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    className="hover:-translate-y-0.5 transition-all border-white/10 hover:border-gradient-to-r hover:from-[#b38bff] hover:to-[#ffe4a3]"
+                    style={{
+                      background: 'transparent',
+                      color: 'hsl(35, 10%, 80%)'
+                    }}
+                  >
                     Explore seeds
                   </Button>
                 </Link>
@@ -234,19 +309,29 @@ const Index = () => {
           </div>
 
           {/* Masonry Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredSeeds.map((seed, index) => (
-            <div key={seed.id} className={`${seed.type === 'text' ? 'row-span-1' : 'row-span-2'}`}>
-              <UnifiedSeedCard
-                seed={seed}
-                className="animate-fade-in-up h-full"
-                style={{ animationDelay: `${index * 0.1}s` } as React.CSSProperties}
-                onFork={handleForkSeed}
-                onView={handleViewSeed}
-              />
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin h-8 w-8 border-2 border-accent-1 border-t-transparent rounded-full"></div>
+          </div>
+        ) : featuredSeeds.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {featuredSeeds.map((seed, index) => (
+              <div key={seed.id} className={`${seed.type === 'text' ? 'row-span-1' : 'row-span-2'}`}>
+                <UnifiedSeedCard
+                  seed={seed}
+                  className="animate-fade-in-up h-full"
+                  style={{ animationDelay: `${index * 0.1}s` } as React.CSSProperties}
+                  onFork={handleForkSeed}
+                  onView={handleViewSeed}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
+            <p>No seeds found. Be the first to plant one!</p>
+          </div>
+        )}
 
           <div className="mt-12 text-center">
             <Link to="/explore">

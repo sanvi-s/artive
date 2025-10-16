@@ -12,6 +12,7 @@ import Explore from "./pages/Explore";
 import ForkEditor from "./pages/ForkEditor";
 import LineageTree from "./pages/LineageTree";
 import Profile from "./pages/Profile";
+import PublicProfile from "./pages/PublicProfile";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 import { TimelineView } from "./pages/forklore";
@@ -53,6 +54,7 @@ const AppContent = () => {
         <Route path="/lineage" element={<LineageTree />} />
         <Route path="/lineage-tree" element={<LineageTree />} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/profile/:userId" element={<PublicProfile />} />
         <Route path="/about" element={<About />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />

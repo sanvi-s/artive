@@ -3,6 +3,7 @@ export interface BaseSeed {
   id: string;
   title: string;
   author: string;
+  authorId?: string;
   time: string;
   forks: number;
   sparks: number;

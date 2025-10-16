@@ -29,7 +29,7 @@ const inspiredForks = allSeeds.filter(seed =>
 const badgeDefinitions = [
   { id: 1, name: "Starter", icon: "🌱", description: "Planted your first seed", condition: (stats: any) => stats.seedsPlanted >= 1 },
   { id: 2, name: "Inspirer", icon: "✨", description: "Inspired 5+ forks", condition: (stats: any) => stats.forksInspired >= 5 },
-  { id: 3, name: "Forker", icon: "🍴", description: "Created 3+ forks", condition: (stats: any) => stats.forksCreated >= 3 },
+  { id: 3, name: "Forker", icon: "🔀", description: "Created 3+ forks", condition: (stats: any) => stats.forksCreated >= 3 },
   { id: 4, name: "Creator", icon: "🎨", description: "Planted 10+ seeds", condition: (stats: any) => stats.seedsPlanted >= 10 },
   { id: 5, name: "Luminary", icon: "🌟", description: "Inspired 20+ forks", condition: (stats: any) => stats.forksInspired >= 20 },
   { id: 6, name: "Collaborator", icon: "🤝", description: "Created 10+ forks", condition: (stats: any) => stats.forksCreated >= 10 },
@@ -37,7 +37,7 @@ const badgeDefinitions = [
   { id: 8, name: "Influencer", icon: "💫", description: "Inspired 50+ forks", condition: (stats: any) => stats.forksInspired >= 50 },
 ];
 
-type Me = { id: string; email?: string; username: string; displayName: string; avatarUrl?: string };
+type Me = { id: string; email?: string; username: string; displayName: string; avatarUrl?: string; bannerUrl?: string };
 
 type ApiSeed = { _id: string; title: string; contentSnippet?: string; contentFull?: string; type: string; author: string; forkCount: number; thumbnailUrl?: string; createdAt: string };
 
@@ -62,6 +62,7 @@ const Profile = () => {
   const [myForksState, setMyForksState] = useState<any[]>([]);
   const [mySeedsDisplay, setMySeedsDisplay] = useState<Seed[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   // Initialize badges immediately - outside of useState to avoid re-initialization
   const initialBadges = useMemo(() => {
     console.log("🔧 Creating initial badges");
@@ -208,6 +209,7 @@ const Profile = () => {
           const msg = data?.error?.message || (raw ? raw.slice(0, 200) : `HTTP ${res.status} ${res.statusText}`);
           throw new Error(msg || "Failed to load profile");
         }
+        console.log('User data from /api/auth/me:', data);
         setMe(data);
         // fetch user's seeds
         try {
@@ -234,6 +236,7 @@ const Profile = () => {
               id: s._id,
               title: s.title,
               author: me?.displayName || me?.username || 'You',
+              authorId: me?.id,
               time: new Date(s.createdAt).toLocaleDateString(),
               forks: s.forkCount || 0,
               sparks: 0,
@@ -308,12 +311,17 @@ const Profile = () => {
       }
     };
     fetchMe();
-  }, [toast]);
+  }, []); // Run only once on mount
 
   // Calculate badges whenever the relevant data changes
   useEffect(() => {
     console.log("🔄 useEffect triggered - seeds:", mySeeds.length, "inspired:", inspiredForksState.length, "forks:", myForksState.length);
     console.log("🔄 Updating badges - seeds:", mySeeds.length, "inspired:", inspiredForksState.length, "forks:", myForksState.length);
+    
+    // Debug: Log seed types to ensure visual seeds are included
+    const seedTypes = mySeeds.map(s => ({ id: s._id, type: s.type, hasImage: Boolean(s.thumbnailUrl) }));
+    console.log("🔄 Seed types breakdown:", seedTypes);
+    
     // Always calculate badges, even if user has 0 seeds/forks
     const badges = calculateBadges(
       mySeeds.length, // seeds planted
@@ -383,6 +391,7 @@ const Profile = () => {
             type: 'visual',
             title: seedData.title,
             author: me?.displayName || me?.username || 'You',
+            authorId: me?.id,
             time: new Date().toLocaleDateString(),
             forks: 0,
             sparks: 0,
@@ -459,6 +468,78 @@ const Profile = () => {
       toast({ title: "Upload failed", description: error.message || "Failed to upload avatar", variant: "destructive" });
     } finally {
       setUploadingAvatar(false);
+    }
+  };
+
+  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !me) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({ title: "Invalid file", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+
+    // Validate file size (10MB limit for banners)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Banner image must be smaller than 10MB", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setUploadingBanner(true);
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem("token");
+
+      console.log('Starting banner upload for user:', me.id);
+
+      // Upload to Cloudinary
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', 'artive/banners');
+
+      const uploadRes = await fetch(`${apiBase}/api/uploads`, { 
+        method: 'POST', 
+        body: form 
+      });
+      const uploadData = await uploadRes.json();
+
+      console.log('Upload response:', uploadRes.status, uploadData);
+
+      if (!uploadRes.ok || !uploadData?.url) {
+        throw new Error(uploadData?.error?.message || 'Upload failed');
+      }
+
+      // Update user profile with new banner URL
+      const updateRes = await fetch(`${apiBase}/api/users/${me.id}`, {
+        method: 'PUT',
+        headers: { 
+          "Content-Type": "application/json", 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ bannerUrl: uploadData.url })
+      });
+
+      console.log('Update response:', updateRes.status);
+
+      if (!updateRes.ok) {
+        const errorData = await updateRes.json();
+        console.error('Update error:', errorData);
+        throw new Error('Failed to update profile');
+      }
+
+      const updatedUserData = await updateRes.json();
+      console.log('Updated user data:', updatedUserData);
+
+      // Update local state
+      setMe(prev => prev ? { ...prev, bannerUrl: uploadData.url } : null);
+      toast({ title: "Success", description: "Banner updated successfully", variant: "default" });
+
+    } catch (error: any) {
+      toast({ title: "Upload failed", description: error.message || "Failed to upload banner", variant: "destructive" });
+    } finally {
+      setUploadingBanner(false);
     }
   };
 
@@ -562,13 +643,39 @@ const Profile = () => {
 
       {/* Header Banner */}
       <div
-        className="relative h-48 md:h-64 bg-cover bg-center"
+        className="relative h-48 md:h-64 bg-cover bg-center group"
         style={{ 
-          backgroundImage: `linear-gradient(135deg, rgba(232, 201, 176, 0.3), rgba(163, 185, 165, 0.3), rgba(212, 195, 222, 0.3))`,
+          backgroundImage: me?.bannerUrl 
+            ? `url(${me.bannerUrl})` 
+            : `linear-gradient(135deg, rgba(232, 201, 176, 0.3), rgba(163, 185, 165, 0.3), rgba(212, 195, 222, 0.3))`,
         }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-        <div className="absolute inset-0 backdrop-blur-sm" />
+        {!uploadingBanner && <div className="absolute inset-0 backdrop-blur-sm" />}
+        
+        {/* Banner Upload Overlay */}
+        <div className={`absolute inset-0 bg-black/50 ${uploadingBanner ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-300 flex items-center justify-center z-10`}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleBannerUpload}
+            className="absolute inset-0 opacity-0 cursor-pointer z-20"
+            disabled={uploadingBanner}
+          />
+          <div className="flex flex-col items-center text-white text-sm">
+            {uploadingBanner ? (
+              <>
+                <div className="animate-spin h-6 w-6 border-2 border-white border-t-transparent rounded-full mb-2"></div>
+                <span>Uploading banner...</span>
+              </>
+            ) : (
+              <>
+                <Pencil className="h-6 w-6 mb-2" />
+                <span>Upload banner</span>
+              </>
+            )}
+          </div>
+        </div>
         <div className="absolute bottom-0 left-8 transform translate-y-1/2 flex items-end gap-4">
             <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-background shadow-lg relative group">
             <img 
@@ -739,6 +846,7 @@ const Profile = () => {
                   title: f.title || f.summary || 'Untitled Fork',
                   type: f.type || 'text',
                   author: f.author?.displayName || f.author?.username || 'Anonymous',
+                  authorId: f.author?._id,
                   time: new Date(f.createdAt).toLocaleDateString(),
                   forks: 0, // This is a fork, not a seed
                   sparks: 0,

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { TextSeed } from "@/types/seed";
-import { GitFork, Eye, Quote } from "lucide-react";
+import { GitFork, Eye, Quote, X } from "lucide-react";
 
 interface TextCardProps {
   seed: TextSeed;
@@ -41,8 +41,8 @@ export const TextCard = ({
   };
 
 
-  const displayContent = isExpanded ? seed.content : seed.excerpt;
-  const shouldTruncate = !isExpanded && seed.content.length > seed.excerpt.length;
+  const displayContent = isExpanded ? (seed as TextSeed).content : (seed as TextSeed).excerpt;
+  const shouldTruncate = !isExpanded && (seed as TextSeed).content.length > (seed as TextSeed).excerpt.length;
 
   return (
         <div
@@ -68,6 +68,19 @@ export const TextCard = ({
           <div className="bg-accent-1/20 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-medium text-accent-1 border border-accent-1/30">
             {seed.threadIndex}/{seed.totalThreadParts}
           </div>
+        </div>
+      )}
+
+      {/* Delete button - top right (show on hover) */}
+      {onDelete && (
+        <div className={`absolute top-3 z-10 transform transition-all duration-300 ease-organic ${isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'} ${seed.isThread && seed.threadIndex && seed.totalThreadParts ? 'right-20' : 'right-3'}`}>
+          <button
+            onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this seed? This cannot be undone.')) { onDelete?.(seed.id); } }}
+            className="px-2 py-1 text-xs rounded-full bg-destructive/80 hover:bg-destructive text-destructive-foreground border border-destructive/50 transition-colors flex items-center gap-1"
+          >
+            <X className="h-3 w-3" />
+            Delete
+          </button>
         </div>
       )}
 
@@ -99,16 +112,16 @@ export const TextCard = ({
           </div>
 
           {/* Thread parts preview */}
-          {seed.isThread && seed.threadParts && seed.threadParts.length > 1 && !isExpanded && (
+          {seed.isThread && (seed as TextSeed).threadParts && (seed as TextSeed).threadParts.length > 1 && !isExpanded && (
             <div className="space-y-2">
-              {seed.threadParts.slice(0, 2).map((part, index) => (
+              {(seed as TextSeed).threadParts.slice(0, 2).map((part, index) => (
                 <div key={index} className="text-sm text-muted-foreground italic border-l-2 border-accent-1/30 pl-3">
                   {part.length > 60 ? `${part.substring(0, 60)}...` : part}
                 </div>
               ))}
-              {seed.threadParts.length > 2 && (
+              {(seed as TextSeed).threadParts.length > 2 && (
                 <div className="text-xs text-muted-foreground italic">
-                  +{seed.threadParts.length - 2} more thoughts...
+                  +{(seed as TextSeed).threadParts.length - 2} more thoughts...
                 </div>
               )}
             </div>
@@ -177,14 +190,7 @@ export const TextCard = ({
             <Eye className="h-3 w-3" />
             <span>Read</span>
           </button>
-          {onDelete && (
-            <button 
-              onClick={handleDelete}
-              className="flex items-center gap-1 px-2 py-1 rounded-full bg-destructive/80 hover:bg-destructive text-destructive-foreground border border-destructive/50 transition-colors"
-            >
-              <span>Delete</span>
-            </button>
-          )}
+          {/* Delete action removed from footer; kept only as top-right icon */}
         </div>
       </div>
 

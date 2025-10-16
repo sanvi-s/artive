@@ -92,7 +92,7 @@ const Signup = () => {
                 <img src="/LOGO_DARK.png" alt="Artive Logo" className="h-10 w-10 object-contain hidden dark:block" />
               </div>
               <h1 className="text-display font-logo font-bold tracking-tight">Create your Artive account</h1>
-              <p className="text-base italic text-muted-foreground">Begin messy, perfect doesn't need to be finished.</p>
+              <p className="text-base italic text-muted-foreground">Half-baked? Perfect. Let's go.</p>
             </div>
 
             {/* Form */}

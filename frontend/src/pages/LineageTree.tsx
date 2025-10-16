@@ -7,6 +7,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useForklore } from "@/contexts/ForkloreContext";
+import { SeedViewModal } from "@/components/SeedViewModal";
 
 interface Node {
   id: string;
@@ -243,6 +244,51 @@ const LineageTree = () => {
   const [lineageData, setLineageData] = useState<LineageData | null>(null);
   const [realNodes, setRealNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedSeed, setSelectedSeed] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Handle seed click to open modal
+  const handleSeedClick = (node: any) => {
+    console.log('Tree seed clicked:', node);
+    console.log('Original date:', node.date);
+    console.log('Parsed date:', new Date(node.date));
+    // Convert node to seed format for the modal
+    const seed = {
+      id: node.id,
+      title: node.title,
+      author: node.author,
+      time: new Date(node.date).toISOString(),
+      forks: node.forks,
+      sparks: 0,
+      category: 'timeline',
+      tags: [],
+      type: (node as any).seedType === 'visual' ? 'visual' : 'text',
+      content: (node as any).content || '',
+      excerpt: (node as any).content?.slice(0, 100) || '',
+      image: node.image || '',
+      isForked: node.type === 'fork',
+      parentId: (node as any).parentId
+    };
+    console.log('Tree modal seed:', seed);
+    setSelectedSeed(seed);
+    setIsModalOpen(true);
+    console.log('Tree modal should be open now');
+  };
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedSeed(null);
+  };
+
+  // Handle fork action
+  const handleFork = (seedId: string) => {
+    console.log('Fork seed:', seedId);
+    toast({
+      title: "Fork Seed",
+      description: "Redirecting to fork page...",
+    });
+  };
 
   // Get current nodes and connections based on mode
   const currentNodes = useMemo(() => {
@@ -281,8 +327,9 @@ const LineageTree = () => {
   }, [mode, lineageData]);
 
   const handleNodeClick = (node: Node) => {
-    // Expand this node to emphasize its child branches and scale the petal
-    setExpandedNodeId(prev => prev === node.id ? null : node.id);
+    // Only open the modal, no expanding/collapsing
+    console.log('Tree node clicked:', node.id);
+    handleSeedClick(node);
   };
 
   // Fetch user seeds when authenticated
@@ -900,11 +947,10 @@ const LineageTree = () => {
               </linearGradient>
             );
 
-            // Animate growth for emphasized branches
-            const isEmphasized = expandedNodeId && (conn.from === expandedNodeId || conn.to === expandedNodeId);
-            const strokeW = isEmphasized ? 3 : 1.2;
+            // Standard branch styling
+            const strokeW = 1.2;
             return (
-              <g key={index} className={isEmphasized ? "animate-organic-fade-in" : undefined}>
+              <g key={index}>
                 <defs>{grad}</defs>
                 {/* halo */}
                 <path d={d} fill="none" stroke="rgba(139,69,19,0.15)" strokeWidth={strokeW + 1.2} strokeLinecap="round" strokeLinejoin="round" opacity={0.4} />
@@ -912,10 +958,6 @@ const LineageTree = () => {
                 <path d={d} fill="none" stroke="rgba(139,69,19,0.25)" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "url(#branchRough)" }} opacity={0.8} className="animate-[brush-reveal_2.4s_var(--ease-organic)]" strokeDasharray={600} strokeDashoffset={0} />
                 {/* tip accent to fake taper */}
                 <path d={d} fill="none" stroke="rgba(139,69,19,0.35)" strokeWidth={0.8} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
-                {/* enhanced glow for emphasized connections */}
-                {isEmphasized && (
-                  <path d={d} fill="none" stroke="rgba(139,69,19,0.6)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.8} style={{ filter: "blur(2px)" }} />
-                )}
               </g>
             );
           })}
@@ -930,8 +972,6 @@ const LineageTree = () => {
             const { d, transform } = makePetalPath(node.x, node.y, size, rotation);
 
             const isHovered = hoveredNodeId === node.id;
-            const isExpanded = expandedNodeId === node.id;
-            const scale = isExpanded ? 1.08 : 1; // Remove hover scaling animation
 
             return (
               <g key={node.id} className="cursor-pointer" onClick={() => handleNodeClick(node)} onMouseEnter={() => setHoveredNodeId(node.id)} onMouseLeave={() => setHoveredNodeId(null)}>
@@ -939,7 +979,7 @@ const LineageTree = () => {
                 <path d={d} transform={transform} fill="none" stroke={isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.6)"} strokeWidth={node.type === "original" ? 4.2 : 3.2} opacity={0.15} />
                 <path
                   d={d}
-                  transform={`${transform} scale(${scale})`}
+                  transform={transform}
                   fill={`url(#petal-grad-${node.id})`}
                   stroke={stroke}
                   strokeWidth={node.type === "original" ? 3 : 2.2}
@@ -956,7 +996,7 @@ const LineageTree = () => {
                   strokeWidth={0.7}
                   opacity={0.45}
                   fill="none"
-                  transform={`${transform} scale(${scale})`}
+                  transform={transform}
                 />
 
                 {/* Fork count badge with gradient and shadow */}
@@ -1039,20 +1079,28 @@ const LineageTree = () => {
         
         return (
           <div 
-            className="fixed z-50 pointer-events-none"
+            className="fixed z-50"
             style={{
-              left: `${finalLeft}px`,
+              left: `${finalLeft + 20}px`, // Move 20px closer to the node
               top: `${node.y}px`,
               transform: `translateY(-50%)`
             }}
+            onMouseEnter={() => {
+              // Keep the card visible when hovering over it
+              setHoveredNodeId(node.id);
+            }}
+            onMouseLeave={() => {
+              // Don't hide immediately when leaving the card
+              setTimeout(() => {
+                setHoveredNodeId(null);
+              }, 200);
+            }}
           >
             <div className="w-96 max-h-[500px]">
-            <div className="relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent transition-all duration-hover ease-organic animate-organic-fade-in h-fit torn_container torn_left torn_right" style={{
-                '--torn-background-color': '#fef3c7',
-                '--torn-shadow-background-color': 'transparent',
-                '--torn-left-width': '10px',
-                '--torn-right-width': '10px'
-              } as any}>
+            <div 
+              className="relative group cursor-pointer bg-amber-50 dark:bg-orange-900 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-amber-200 dark:border-orange-800 overflow-hidden"
+              onClick={() => handleSeedClick(node)}
+            >
                 <div></div>
                 <div className="relative">
                   {/* Type icon indicator */}
@@ -1066,41 +1114,33 @@ const LineageTree = () => {
                   
                   {(node as any).seedType === 'visual' ? (
                     /* Visual Seed - Image */
-                    <div className="relative overflow-hidden" style={{ aspectRatio: 'auto' }}>
+                    <div className="relative overflow-hidden">
                       <img
                         src={node.image}
                         alt={node.title}
-                        className="w-full h-auto max-h-[300px] object-cover transition-transform duration-long ease-organic"
+                        className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={(e) => {
                           e.currentTarget.src = `https://via.placeholder.com/320x400/E8C9B0/1E1B18?text=${node.title.charAt(0)}`;
-                        }}
-                        onLoad={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          const aspectRatio = img.naturalWidth / img.naturalHeight;
-                          if (aspectRatio > 1) {
-                            img.style.aspectRatio = '16/9';
-                          } else {
-                            img.style.aspectRatio = '4/5';
-                          }
                         }}
                       />
                       
                       {/* Title overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-4">
-                        <div className="transform translate-y-0 transition-transform duration-300">
-                          <h3 className="font-display font-semibold text-white text-lg mb-1 line-clamp-2">
-                            {node.title}
-                          </h3>
-                        </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex flex-col justify-end p-4">
+                        <h3 className="font-semibold text-white text-lg mb-1 line-clamp-2 drop-shadow-lg">
+                          {node.title}
+                        </h3>
+                        <p className="text-white/90 text-sm line-clamp-1">
+                          by {node.author}
+                        </p>
                       </div>
                     </div>
                   ) : (
                     /* Text Seed - Content */
-                    <div className="p-6 space-y-4 bg-transparent">
-                      <h3 className="font-display font-semibold text-lg leading-tight text-foreground">
+                    <div className="p-6 space-y-4">
+                      <h3 className="font-semibold text-lg leading-tight text-amber-900 dark:text-orange-100">
                         {node.title}
                       </h3>
-                      <div className="prose prose-sm max-w-none text-muted-foreground">
+                      <div className="prose prose-sm max-w-none text-amber-700 dark:text-orange-200">
                         <p className="line-clamp-4 leading-relaxed whitespace-pre-wrap">
                           {(node as any).content || 'No content available'}
                         </p>
@@ -1108,19 +1148,27 @@ const LineageTree = () => {
                     </div>
                   )}
 
-                  {/* Content */}
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="font-handwritten">{node.author}</span>
+                  {/* Footer */}
+                  <div className="px-6 pb-4 space-y-2">
+                    <div className="flex items-center justify-between text-xs text-amber-600 dark:text-orange-300">
+                      <span className="font-medium">{node.author}</span>
                       <span>{node.date}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       {node.forks > 0 && (
-                        <span className="flex items-center gap-1 text-accent-2">
-                          <span className="text-accent-2">🍴</span>
+                        <span className="flex items-center gap-1 text-amber-700 dark:text-orange-400">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="8" cy="6" r="2" fill="currentColor"/>
+                            <circle cx="16" cy="6" r="2" fill="currentColor"/>
+                            <circle cx="12" cy="18" r="2" fill="currentColor"/>
+                            <path d="M8 8L12 16M16 8L12 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
                           {node.forks}
                         </span>
                       )}
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-orange-900/30 dark:text-orange-200">
+                        {node.type === 'original' ? 'Original' : 'Fork'}
+                      </span>
                     </div>
                   </div>
 
@@ -1128,7 +1176,12 @@ const LineageTree = () => {
                   <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-background via-background/95 to-transparent transform translate-y-0 transition-transform duration-reveal ease-organic border-t border-border/20">
                     <div className="flex items-center gap-2 text-xs">
                       <button className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent-1/20 hover:bg-accent-1/30 text-accent-1 border border-accent-1/30 transition-colors">
-                        <span className="text-accent-1">🍴</span>
+                        <svg className="w-3 h-3 text-accent-1" viewBox="0 0 24 24" fill="currentColor">
+                          <circle cx="8" cy="6" r="2" fill="currentColor"/>
+                          <circle cx="16" cy="6" r="2" fill="currentColor"/>
+                          <circle cx="12" cy="18" r="2" fill="currentColor"/>
+                          <path d="M8 8L12 16M16 8L12 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        </svg>
                         <span>Fork</span>
                       </button>
                       <button className="flex items-center gap-1 px-2 py-1 rounded-full bg-secondary/80 hover:bg-secondary text-foreground transition-colors">
@@ -1226,6 +1279,14 @@ const LineageTree = () => {
           Download Lineage
         </Button>
       </div>
+
+      {/* Seed View Modal */}
+      <SeedViewModal
+        seed={selectedSeed}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        onFork={handleFork}
+      />
     </div>
   );
 };

@@ -48,20 +48,30 @@ export const Navbar = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors relative ${
+                className={`group px-3 py-2 rounded-md text-sm font-medium transition-all duration-300 relative ${
                   location.pathname === item.path
                     ? "text-accent-foreground bg-accent/10"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/5"
                 }`}
               >
                 {item.label}
-                {/* Unfinished line effect for non-active items */}
+                {/* Gradient underline for active items */}
+                {location.pathname === item.path && (
+                  <div 
+                    className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                    style={{
+                      background: 'linear-gradient(90deg, #b38bff 0%, #ffe4a3 100%)'
+                    }}
+                  />
+                )}
+                {/* Hover underline effect for non-active items */}
                 {location.pathname !== item.path && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-0 h-0.5 bg-accent-foreground animate-pulse" 
-                       style={{ 
-                         width: Math.random() > 0.5 ? '60%' : '30%',
-                         animationDelay: `${Math.random() * 2}s`
-                       }} />
+                  <div 
+                    className="absolute bottom-0 left-1/2 transform -translate-x-1/2 h-0.5 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 w-0 group-hover:w-full"
+                    style={{
+                      background: 'linear-gradient(90deg, #b38bff 0%, #ffe4a3 100%)'
+                    }}
+                  />
                 )}
               </Link>
             ))}

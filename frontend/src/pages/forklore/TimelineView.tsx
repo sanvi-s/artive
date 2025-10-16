@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useForklore } from '@/contexts/ForkloreContext';
+import { SeedViewModal } from '@/components/SeedViewModal';
 
 interface Seed {
   id: string;
@@ -181,6 +182,55 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const [realSeeds, setRealSeeds] = useState<Seed[]>([]);
   const [realCenterSeed, setRealCenterSeed] = useState<Seed | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedSeed, setSelectedSeed] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Debug modal state
+  console.log('Modal state:', { selectedSeed, isModalOpen });
+
+  // Handle seed click to open modal
+  const handleSeedClick = (seed: Seed) => {
+    console.log('Seed clicked:', seed);
+    console.log('Original date:', seed.date);
+    console.log('Parsed date:', new Date(seed.date));
+    // Convert to proper seed format for the modal
+    const modalSeed = {
+      id: seed.id,
+      title: seed.title,
+      author: seed.author,
+      time: new Date(seed.date).toISOString(),
+      forks: (seed as any).forks || 0,
+      sparks: 0,
+      category: 'timeline',
+      tags: [],
+      type: seed.type,
+      content: (seed as any).content || '',
+      excerpt: (seed as any).content?.slice(0, 100) || '',
+      image: (seed as any).image || '',
+      isForked: seed.generation > 0,
+      parentId: seed.parentId
+    };
+    console.log('Modal seed:', modalSeed);
+    setSelectedSeed(modalSeed);
+    setIsModalOpen(true);
+    console.log('Modal should be open now');
+  };
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedSeed(null);
+  };
+
+  // Handle fork action
+  const handleFork = (seedId: string) => {
+    // You can implement fork logic here or redirect to fork page
+    console.log('Fork seed:', seedId);
+    toast({
+      title: "Fork Seed",
+      description: "Redirecting to fork page...",
+    });
+  };
 
   // Get current seeds and center seed based on mode
   const currentSeeds = React.useMemo(() => {
@@ -193,7 +243,11 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   // Sort seeds based on selected option
   const sortedSeeds = React.useMemo(() => {
-    const allSeeds = currentCenterSeed ? [currentCenterSeed, ...currentSeeds] : currentSeeds;
+    // Filter out the center seed from currentSeeds to avoid duplicates
+    const filteredCurrentSeeds = currentCenterSeed 
+      ? currentSeeds.filter(seed => seed.id !== currentCenterSeed.id)
+      : currentSeeds;
+    const allSeeds = currentCenterSeed ? [currentCenterSeed, ...filteredCurrentSeeds] : filteredCurrentSeeds;
     
     switch (sortBy) {
       case 'newest':
@@ -398,11 +452,15 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           setHighlightedPath(path);
         }}
         onMouseLeave={() => {
-          setHoveredNode(null);
-          setHighlightedPath([]);
+          // Add a small delay to allow clicking on the card
+          setTimeout(() => {
+            setHoveredNode(null);
+            setHighlightedPath([]);
+          }, 100);
         }}
         onClick={() => {
-          console.log('Open seed:', seed.id);
+          console.log('Timeline node clicked:', seed.id);
+          handleSeedClick(seed);
         }}
       >
         {/* Card */}
@@ -490,18 +548,43 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
       const token = localStorage.getItem("token");
       
+      console.log('Fetching lineage data for ID:', seedId);
+      
+      // Try to fetch as a seed first
+      let seedRes = await fetch(`${apiBase}/api/seeds/${seedId}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+      });
+      
+      let seedData = null;
+      let isFork = false;
+      
+      if (seedRes.ok) {
+        seedData = await seedRes.json();
+        console.log('Found as seed:', seedData);
+      } else {
+        // If not found as seed, it might be a fork
+        // For now, we'll try to fetch lineage data directly
+        // since forks don't have individual endpoints
+        console.log('Not found as seed, trying as fork or direct lineage fetch');
+        isFork = true;
+      }
+      
+      // Fetch the lineage data
       const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=3`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
       
       if (res.ok) {
         const data = await res.json();
+        console.log('Lineage data received:', data);
         setLineageData(data);
         buildRealTimeline(data, seedId);
       } else {
+        const errorText = await res.text();
+        console.error('Lineage fetch failed:', res.status, errorText);
         toast({
           title: "Error",
-          description: "Failed to fetch lineage data",
+          description: `Failed to fetch lineage data: ${res.status === 404 ? 'Seed/Fork not found' : 'Access denied'}`,
           variant: "destructive"
         });
       }
@@ -523,28 +606,71 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
       const token = localStorage.getItem("token");
       
+      console.log('Building timeline with lineage data:', lineageData);
+      console.log('Lineage nodes:', lineageData.nodes);
+      console.log('Lineage edges:', lineageData.edges);
+      
       // Fetch details for all nodes including their forks
       const nodeDetails = await Promise.all(
         lineageData.nodes.map(async (nodeId) => {
-          const res = await fetch(`${apiBase}/api/seeds/${nodeId}`, {
+          console.log('Fetching details for node:', nodeId);
+          
+          // First try to fetch as a seed
+          let res = await fetch(`${apiBase}/api/seeds/${nodeId}`, {
             headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
           });
+          
           if (res.ok) {
             const data = await res.json();
+            console.log('Node details fetched as seed:', data);
             // The API returns { seed, forks }, so we need both
             return { seed: data.seed, forks: data.forks || [] };
+          } else {
+            // If not found as seed, try to fetch as a fork
+            console.log('Not found as seed, trying as fork:', nodeId);
+            const forkRes = await fetch(`${apiBase}/api/forks/${nodeId}`, {
+              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+            });
+            
+            if (forkRes.ok) {
+              const forkData = await forkRes.json();
+              console.log('Found as fork:', forkData);
+              const fork = forkData.fork;
+              
+              // Create a mock seed object from the fork data
+              const mockSeed = {
+                _id: fork._id,
+                title: fork.summary || 'Fork',
+                contentFull: fork.contentDelta || fork.summary || '',
+                contentSnippet: fork.summary || '',
+                type: 'text',
+                author: fork.author,
+                createdAt: fork.createdAt,
+                thumbnailUrl: fork.thumbnailUrl || fork.imageUrl,
+                forkCount: 0 // Forks don't have fork counts
+              };
+              return { seed: mockSeed, forks: [] };
+            }
+            
+            console.log('Failed to fetch node details for:', nodeId, res.status);
+            return null;
           }
-          return null;
         })
       );
 
       // Filter out failed requests and build seeds
       const validNodeDetails = nodeDetails.filter(Boolean);
-      const rootNodeDetail = validNodeDetails.find(nodeDetail => nodeDetail.seed._id === rootSeedId);
+      console.log('Valid node details:', validNodeDetails);
+      console.log('Looking for root seed ID:', rootSeedId);
       
+      const rootNodeDetail = validNodeDetails.find(nodeDetail => nodeDetail.seed._id === rootSeedId);
+      console.log('Root node detail found:', rootNodeDetail);
+      
+      let localRootSeed = null;
       if (rootNodeDetail) {
         const rootSeed = rootNodeDetail.seed;
-        setRealCenterSeed({
+        console.log('Setting root seed:', rootSeed);
+        localRootSeed = {
           id: rootSeed._id,
           title: rootSeed.title,
           author: rootSeed.author?.displayName || rootSeed.author?.username || 'Unknown',
@@ -554,19 +680,35 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           children: [],
           // Add image and content for hover preview
           image: rootSeed.thumbnailUrl,
-          content: rootSeed.contentSnippet || rootSeed.contentFull
-        } as any);
+          content: rootSeed.contentFull || rootSeed.contentSnippet || rootSeed.content || ''
+        } as any;
+        console.log('localRootSeed created:', localRootSeed);
+        setRealCenterSeed(localRootSeed);
+      } else {
+        console.log('No root node detail found for ID:', rootSeedId);
       }
 
       // Build other seeds including forks
       const otherSeeds: Seed[] = [];
       
+      // Calculate proper generations for all nodes
+      const calculateGeneration = (nodeId: string, visited = new Set<string>()): number => {
+        if (visited.has(nodeId)) return 0; // Prevent infinite loops
+        visited.add(nodeId);
+        
+        const edge = lineageData.edges.find(e => e.child === nodeId);
+        if (!edge) return 0; // Root node
+        
+        // Recursively calculate parent's generation and add 1
+        return calculateGeneration(edge.parent, visited) + 1;
+      };
+      
       validNodeDetails.forEach((nodeDetail) => {
         const seed = nodeDetail.seed;
         if (seed._id !== rootSeedId) {
-          // Find parent from edges
-          const edge = lineageData.edges.find(e => e.child === seed._id);
-          const generation = edge ? 1 : 0; // Simplified generation calculation
+          // Calculate proper generation based on lineage depth
+          const generation = calculateGeneration(seed._id);
+          console.log(`Node ${seed._id} (${seed.title}) has generation ${generation}`);
           
           otherSeeds.push({
             id: seed._id,
@@ -576,21 +718,23 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             createdAt: seed.createdAt, // Add full timestamp for proper sorting
             type: seed.type === 'poem' ? 'text' : 'visual',
             generation: generation,
-            parentId: edge?.parent,
+            parentId: lineageData.edges.find(e => e.child === seed._id)?.parent,
             // Add content for hover preview
-            content: seed.contentFull || seed.contentSnippet || '',
+            content: seed.contentFull || seed.contentSnippet || seed.content || '',
             children: []
           } as any);
         }
 
         // Add forks as separate timeline items
         nodeDetail.forks.forEach((fork: any) => {
-          const originalContent = seed.contentFull || seed.contentSnippet || '';
-          const forkContent = fork.contentDelta || fork.summary || '';
-          const combinedContent = originalContent && forkContent
-            ? `${originalContent}\n${forkContent}`
-            : (forkContent || originalContent);
+          const originalContent = seed.contentFull || seed.contentSnippet || seed.content || '';
+          const forkContent = fork.contentDelta || fork.summary || fork.content || '';
+          // For forks, use contentDelta directly as it already contains the full content
+          const combinedContent = fork.contentDelta || fork.summary || fork.content || originalContent;
           
+          // Calculate proper generation for this fork
+          const forkGeneration = calculateGeneration(fork._id);
+          console.log(`Fork ${fork._id} (${fork.summary || 'Fork'}) has generation ${forkGeneration}`);
             
           otherSeeds.push({
             id: fork._id,
@@ -598,8 +742,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             author: fork.author?.displayName || fork.author?.username || 'Anonymous',
             date: new Date(fork.createdAt).toISOString().split('T')[0],
             createdAt: fork.createdAt, // Add full timestamp for proper sorting
-            type: fork.type === 'poem' ? 'text' : 'visual',
-            generation: 1, // Forks are always generation 1
+            type: 'text', // Forks are always text seeds since they have content
+            generation: forkGeneration, // Use calculated generation
             parentId: fork.parentSeed?._id || seed._id,
             // Add content for hover preview - combined original and fork content
             content: combinedContent,
@@ -612,7 +756,20 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         });
       });
 
-      setRealSeeds(otherSeeds);
+      // Include the root seed in the realSeeds array if it exists
+      console.log('localRootSeed before creating allRealSeeds:', localRootSeed);
+      const allRealSeeds = localRootSeed ? [localRootSeed, ...otherSeeds] : otherSeeds;
+      console.log('Setting real seeds:', allRealSeeds);
+      console.log('Root seed included:', !!localRootSeed);
+      console.log('Other seeds count:', otherSeeds.length);
+      console.log('allRealSeeds length:', allRealSeeds.length);
+      setRealSeeds(allRealSeeds);
+      
+      // Log the timeline data for debugging
+      const timelineData = allRealSeeds.filter(Boolean).sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      console.log('Timeline data:', timelineData);
     } catch (error) {
       console.error('Failed to build real timeline:', error);
     }
@@ -620,7 +777,15 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   // Auto-load lineage data when selectedSeedId changes
   useEffect(() => {
-    if (selectedSeedId && mode === "real") {
+    console.log('SelectedSeedId changed:', selectedSeedId);
+    console.log('Current mode:', mode);
+    if (selectedSeedId) {
+      // Ensure we're in real mode when a seed is selected
+      if (mode !== "real") {
+        console.log('Switching to real mode for selected seed');
+        setMode("real");
+      }
+      console.log('Fetching lineage data for seed:', selectedSeedId);
       fetchLineageData(selectedSeedId);
     }
   }, [selectedSeedId, mode]);
@@ -852,20 +1017,33 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             
             return (
               <div 
-                className="fixed z-50 pointer-events-none"
+                className="fixed z-50"
                 style={{
-                  left: `${finalLeft}px`,
+                  left: `${finalLeft + 20}px`, // Move 20px closer to the timeline
                   top: `${position.y}px`,
                   transform: `translateY(-50%)`
                 }}
+                onMouseEnter={() => {
+                  // Keep the card visible when hovering over it
+                  setHoveredNode(seed.id);
+                }}
+                onMouseLeave={() => {
+                  // Don't hide immediately when leaving the card
+                  setTimeout(() => {
+                    setHoveredNode(null);
+                  }, 200);
+                }}
               >
                 <div className="w-96 max-h-[500px]">
-                <div className="relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent transition-all duration-hover ease-organic animate-organic-fade-in h-fit torn_container torn_left torn_right" style={{
-                    '--torn-background-color': '#fef3c7',
-                    '--torn-shadow-background-color': 'transparent',
-                    '--torn-left-width': '10px',
-                    '--torn-right-width': '10px'
-                  } as any}>
+                <div 
+                  className="relative group cursor-pointer bg-amber-50 dark:bg-orange-900 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-amber-200 dark:border-orange-800 overflow-hidden"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Card clicked!');
+                    handleSeedClick(seed);
+                  }}
+                >
                     <div></div>
                     <div className="relative">
                       {/* Type icon indicator */}
@@ -879,41 +1057,33 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                       
                       {seed.type === 'visual' ? (
                         /* Visual Seed - Image */
-                        <div className="relative overflow-hidden" style={{ aspectRatio: 'auto' }}>
+                        <div className="relative overflow-hidden">
                           <img
                             src={(seed as any).image || (seed as any).thumbnailUrl || `https://via.placeholder.com/320x400/E8C9B0/1E1B18?text=${seed.title.charAt(0)}`}
                             alt={seed.title}
-                            className="w-full h-auto max-h-[300px] object-cover transition-transform duration-long ease-organic"
+                            className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
                             onError={(e) => {
                               e.currentTarget.src = `https://via.placeholder.com/320x400/E8C9B0/1E1B18?text=${seed.title.charAt(0)}`;
-                            }}
-                            onLoad={(e) => {
-                              const img = e.target as HTMLImageElement;
-                              const aspectRatio = img.naturalWidth / img.naturalHeight;
-                              if (aspectRatio > 1) {
-                                img.style.aspectRatio = '16/9';
-                              } else {
-                                img.style.aspectRatio = '4/5';
-                              }
                             }}
                           />
                           
                           {/* Title overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex flex-col justify-end p-4">
-                            <div className="transform translate-y-0 transition-transform duration-300">
-                              <h3 className="font-display font-semibold text-white text-lg mb-1 line-clamp-2">
-                                {seed.title}
-                              </h3>
-                            </div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex flex-col justify-end p-4">
+                            <h3 className="font-semibold text-white text-lg mb-1 line-clamp-2 drop-shadow-lg">
+                              {seed.title}
+                            </h3>
+                            <p className="text-white/90 text-sm line-clamp-1">
+                              by {seed.author}
+                            </p>
                           </div>
                         </div>
                       ) : (
                         /* Text Seed - Content */
-                        <div className="p-6 space-y-4 bg-transparent">
-                          <h3 className="font-display font-semibold text-lg leading-tight text-foreground">
+                        <div className="p-6 space-y-4">
+                          <h3 className="font-semibold text-lg leading-tight text-amber-900 dark:text-orange-100">
                             {seed.title}
                           </h3>
-                          <div className="prose prose-sm max-w-none text-muted-foreground">
+                          <div className="prose prose-sm max-w-none text-amber-700 dark:text-orange-200">
                             <p className="line-clamp-4 leading-relaxed whitespace-pre-wrap">
                               {(seed as any).content || 'No content available'}
                             </p>
@@ -921,24 +1091,67 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                         </div>
                       )}
 
-                      {/* Content */}
-                      <div className="p-4 space-y-2">
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span className="font-handwritten">{seed.author}</span>
+                      {/* Footer */}
+                      <div className="px-6 pb-4 space-y-3">
+                        <div className="flex items-center justify-between text-xs text-amber-600 dark:text-orange-300">
+                          <span className="font-medium">{seed.author}</span>
                           <span>{new Date(seed.date).toLocaleDateString()}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
                           {(seed as any).forks > 0 && (
-                            <span className="flex items-center gap-1 text-accent-2">
-                              <span className="text-accent-2">🍴</span>
+                            <span className="flex items-center gap-1 text-amber-700 dark:text-orange-400">
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="8" cy="6" r="2" fill="currentColor"/>
+                                <circle cx="16" cy="6" r="2" fill="currentColor"/>
+                                <circle cx="12" cy="18" r="2" fill="currentColor"/>
+                                <path d="M8 8L12 16M16 8L12 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                              </svg>
                               {(seed as any).forks}
                             </span>
                           )}
                           {seed.generation !== undefined && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-700 dark:bg-pink-900/20 dark:text-pink-300">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-orange-900/30 dark:text-orange-200">
                               {seed.generation === 0 ? 'Original' : `Gen ${seed.generation}`}
                             </span>
                           )}
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs border-amber-200 dark:border-orange-700 hover:bg-amber-100 dark:hover:bg-orange-800/30"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleFork(seed.id);
+                            }}
+                          >
+                            <svg className="w-3 h-3 mr-1" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="8" cy="6" r="2" fill="currentColor"/>
+                              <circle cx="16" cy="6" r="2" fill="currentColor"/>
+                              <circle cx="12" cy="18" r="2" fill="currentColor"/>
+                              <path d="M8 8L12 16M16 8L12 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            </svg>
+                            Fork
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs border-amber-200 dark:border-orange-700 hover:bg-amber-100 dark:hover:bg-orange-800/30"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleSeedClick(seed);
+                            }}
+                          >
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            View
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -1101,6 +1314,14 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           Download Timeline
         </Button>
       </div>
+
+      {/* Seed View Modal */}
+      <SeedViewModal
+        seed={selectedSeed}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        onFork={handleFork}
+      />
     </div>
   );
 };

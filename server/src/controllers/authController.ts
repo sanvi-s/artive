@@ -64,7 +64,7 @@ export async function me(req: Request & { userId?: string }, res: Response) {
   if (!req.userId) return res.status(401).json({ error: { message: 'Unauthorized' } });
   const user = await User.findById(req.userId).lean<IUser>();
   if (!user) return res.status(404).json({ error: { message: 'Not found' } });
-  return res.json({ id: user._id, email: user.email, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl });
+  return res.json({ id: user._id, email: user.email, username: user.username, displayName: user.displayName, avatarUrl: user.avatarUrl, bannerUrl: user.bannerUrl });
 }
 
 export function authMiddleware(req: Request & { userId?: string }, res: Response, next: NextFunction) {
