@@ -346,7 +346,10 @@ const LineageTree = () => {
       if (!isAuthenticated || !user) return;
 
       try {
-        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error('❌ VITE_API_URL not configured in environment variables');
+}
         const token = localStorage.getItem("token");
         
         if (!token) return;
@@ -405,8 +408,12 @@ const LineageTree = () => {
     if (!seedId) return;
     
     setLoading(true);
+    console.log('🌳 Fetching lineage data for seed:', seedId);
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error('❌ VITE_API_URL not configured in environment variables');
+}
       const token = localStorage.getItem("token");
       
       const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=3`, {
@@ -449,7 +456,10 @@ const LineageTree = () => {
   // Build real tree from lineage data
   const buildRealTree = async (lineageData: LineageData, rootSeedId: string) => {
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error('❌ VITE_API_URL not configured in environment variables');
+}
       const token = localStorage.getItem("token");
       
       console.log('🌳 Building tree with lineage data:', lineageData);

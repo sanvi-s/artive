@@ -765,7 +765,10 @@ const Profile = () => {
                         if ((seed as any).type === 'text' && isValidObjectId) {
                           try {
                             let apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
-                            if (!apiBase) apiBase = "http://localhost:5000";
+                            if (!apiBase) {
+                              console.error('❌ API_BASE_URL not configured in environment variables');
+                              throw new Error('API configuration missing');
+                            }
                             const res = await fetch(`${apiBase}/api/seeds/${seed.id}?full=true`);
                             const raw = await res.text();
                             let json: any = {};
@@ -797,7 +800,10 @@ const Profile = () => {
                         if ((seed as any).type === 'text' && isValidObjectId) {
                           try {
                             let apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
-                            if (!apiBase) apiBase = "http://localhost:5000";
+                            if (!apiBase) {
+                              console.error('❌ API_BASE_URL not configured in environment variables');
+                              throw new Error('API configuration missing');
+                            }
                             const res = await fetch(`${apiBase}/api/seeds/${seed.id}?full=true`);
                             const raw = await res.text();
                             let json: any = {};
@@ -840,11 +846,6 @@ const Profile = () => {
                 // The parent content is already shown in the parent fork/seed
                 const combinedContent = forkContent || originalContent;
                 
-                console.log('🔍 Fork data for inspired fork:', f);
-                console.log('🔍 Has imageUrl:', !!f.imageUrl);
-                console.log('🔍 Has thumbnailUrl:', !!f.thumbnailUrl);
-                console.log('🔍 Parent seed imageUrl:', !!f.parentSeed?.imageUrl);
-                console.log('🔍 Parent seed thumbnailUrl:', !!f.parentSeed?.thumbnailUrl);
                 
                 const forkAsSeed = {
                   id: f._id,
@@ -940,19 +941,15 @@ const Profile = () => {
                   ? (fork.description || forkContent || originalContent)
                   : (forkContent || originalContent);
                 
-                console.log('🔍 Fork data for my fork:', fork);
-                console.log('🔍 Fork content:', forkContent);
-                console.log('🔍 Original content:', originalContent);
-                console.log('🔍 Combined content:', combinedContent);
-                console.log('🔍 Fork description:', fork.description);
-                console.log('🔍 Has imageUrl:', !!fork.imageUrl);
-                console.log('🔍 Has thumbnailUrl:', !!fork.thumbnailUrl);
-                console.log('🔍 Parent seed imageUrl:', !!fork.parentSeed?.imageUrl);
-                console.log('🔍 Parent seed thumbnailUrl:', !!fork.parentSeed?.thumbnailUrl);
-                
-                const finalImageUrl = fork.imageUrl || fork.parentSeed?.imageUrl || fork.thumbnailUrl || fork.parentSeed?.thumbnailUrl;
-                console.log('🔍 Final image URL:', finalImageUrl);
-                console.log('🔍 Detected type:', (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text');
+                // Production debugging for fork content issues
+                if (process.env.NODE_ENV === 'development' || !combinedContent) {
+                  console.log('🔍 Fork data for my fork:', fork);
+                  console.log('🔍 Fork content:', forkContent);
+                  console.log('🔍 Original content:', originalContent);
+                  console.log('🔍 Combined content:', combinedContent);
+                  console.log('🔍 Fork description:', fork.description);
+                  console.log('🔍 Is visual fork:', isVisualFork);
+                }
                 
                 const forkAsSeed = {
                   id: fork._id,
@@ -988,10 +985,13 @@ const Profile = () => {
                   forkContent: forkContent,
                 } as any;
                 
-                console.log('🔍 Final forkAsSeed object:', forkAsSeed);
-                console.log('🔍 Final seed image field:', forkAsSeed.image);
-                console.log('🔍 Final seed content field:', forkAsSeed.content);
-                console.log('🔍 Content length:', forkAsSeed.content?.length);
+                // Production debugging for fork mapping issues
+                if (process.env.NODE_ENV === 'development' || !forkAsSeed.content) {
+                  console.log('🔍 Final forkAsSeed object:', forkAsSeed);
+                  console.log('🔍 Final seed image field:', forkAsSeed.image);
+                  console.log('🔍 Final seed content field:', forkAsSeed.content);
+                  console.log('🔍 Content length:', forkAsSeed.content?.length);
+                }
 
                 return (
                   <div key={`my-fork-${fork._id}-${index}`}>

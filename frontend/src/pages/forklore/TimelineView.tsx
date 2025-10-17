@@ -518,7 +518,10 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       if (!isAuthenticated || !user) return;
 
       try {
-        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error('❌ VITE_API_URL not configured in environment variables');
+}
         const token = localStorage.getItem("token");
         
         if (!token) return;
@@ -545,7 +548,10 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     
     setLoading(true);
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error('❌ VITE_API_URL not configured in environment variables');
+}
       const token = localStorage.getItem("token");
       
       console.log('Fetching lineage data for ID:', seedId);
@@ -607,7 +613,10 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   // Build real timeline from lineage data
   const buildRealTimeline = async (lineageData: LineageData, rootSeedId: string) => {
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
+if (!apiBase) {
+  console.error('❌ VITE_API_URL not configured in environment variables');
+}
       const token = localStorage.getItem("token");
       
       console.log('Building timeline with lineage data:', lineageData);

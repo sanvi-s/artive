@@ -56,6 +56,11 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
   if (!req.userId) return res.status(401).json({ error: { message: 'Unauthorized' } });
   const { id } = req.params as { id: string };
   const { contentDelta, summary, description, imageUrl, thumbnailUrl } = req.body || {};
+  
+  // Production debugging for fork creation
+  console.log('🔀 Creating fork for seed:', id);
+  console.log('🔀 User ID:', req.userId);
+  console.log('🔀 Fork data:', { contentDelta, summary, description, imageUrl, thumbnailUrl });
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
@@ -89,7 +94,11 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
       console.log(`🔀 Updated root seed ${rootSeedId} total fork count to ${totalForkCount}`);
     }
     
+    console.log('🔀 Fork created successfully for seed:', id);
     res.status(201).json({ ok: true });
+  } catch (error: any) {
+    console.error('❌ Error creating fork:', error);
+    res.status(500).json({ error: { message: 'Failed to create fork' } });
   } finally {
     await session.endSession();
   }

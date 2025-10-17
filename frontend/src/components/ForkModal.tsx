@@ -46,12 +46,17 @@ export const ForkModal = ({ isOpen, onClose, seedId, seedType, initialText, onFo
     setSubmitting(true);
     try {
       let apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
-      if (!apiBase) apiBase = "http://localhost:5050";
+        if (!apiBase) {
+          console.error('❌ VITE_API_URL not configured in environment variables');
+          throw new Error('API configuration missing');
+        }
       const token = localStorage.getItem("token");
       if (!token) throw new Error("You must be logged in to fork.");
 
+      // Production debugging for fork creation
       console.log('🔀 Creating fork for seed:', seedId);
       console.log('🔀 API base:', apiBase);
+      console.log('🔀 Seed type:', seedType);
       
       let imageUrl = undefined;
       let thumbnailUrl = undefined;

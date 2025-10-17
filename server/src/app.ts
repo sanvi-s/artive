@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { randomUUID } from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
+import { productionConfig } from './config/production';
 import { logger } from './utils/logger';
 import miscRoutes from './routes/misc';
 import authRoutes from './routes/auth';
@@ -16,6 +17,9 @@ import uploadRoutes from './routes/uploads';
 import searchRoutes from './routes/search';
 
 const app = express();
+
+// Use production config in production environment
+const currentConfig = config.env === 'production' ? productionConfig : config;
 
 app.set('trust proxy', 1);
 
@@ -35,20 +39,9 @@ app.use((req, _res, next) => {
   next();
 });
 
-const allowedOrigin = config.frontendOrigin || 'http://localhost:8080';
-app.use(
-  cors({
-    origin: allowedOrigin,
-    credentials: true,
-  })
-);
+app.use(cors(currentConfig.cors));
 
-const limiter = rateLimit({
-  windowMs: config.rateLimit.windowMs,
-  max: config.rateLimit.max,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+const limiter = rateLimit(currentConfig.rateLimit);
 
 // Apply limiter only to write routes later; for now, apply globally low limits
 app.use(limiter);
