@@ -39,9 +39,9 @@ app.use((req: any, _res: any, next: any) => {
   next();
 });
 
-app.use(cors(currentConfig.cors as any));
+app.use(cors((currentConfig as any).cors));
 
-const limiter = rateLimit(currentConfig.rateLimit as any);
+const limiter = rateLimit((currentConfig as any).rateLimit);
 
 // Apply limiter only to write routes later; for now, apply globally low limits
 app.use(limiter);

@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const userController_1 = require("../controllers/userController");
+const forkController_1 = require("../controllers/forkController");
+const router = (0, express_1.Router)();
+router.get('/:id', userController_1.getUser);
+router.put('/:id', userController_1.authMiddleware, userController_1.updateUser);
+router.get('/:id/inspired-forks', forkController_1.listForksInspiredByUser);
+router.get('/:id/forks', forkController_1.listForksByUser);
+exports.default = router;
