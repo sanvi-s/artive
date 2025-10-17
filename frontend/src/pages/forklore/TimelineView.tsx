@@ -175,9 +175,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const hasAnimatedOnceRef = useRef<boolean>(false);
 
   // New state for real data functionality
-  const [mode, setMode] = useState<"demo" | "real">("real");
   const [userSeeds, setUserSeeds] = useState<UserSeed[]>([]);
-  const { selectedSeedId, setSelectedSeedId } = useForklore();
+  const { selectedSeedId, setSelectedSeedId, mode, setMode } = useForklore();
   const [lineageData, setLineageData] = useState<LineageData | null>(null);
   const [realSeeds, setRealSeeds] = useState<Seed[]>([]);
   const [realCenterSeed, setRealCenterSeed] = useState<Seed | null>(null);
@@ -234,11 +233,23 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   // Get current seeds and center seed based on mode
   const currentSeeds = React.useMemo(() => {
-    return mode === "demo" ? seeds : realSeeds;
+    if (mode === "demo") {
+      console.log('Using demo seeds:', seeds);
+      return seeds;
+    } else {
+      console.log('Using real seeds:', realSeeds);
+      return realSeeds;
+    }
   }, [mode, seeds, realSeeds]);
 
   const currentCenterSeed = React.useMemo(() => {
-    return mode === "demo" ? centerSeed : realCenterSeed;
+    if (mode === "demo") {
+      console.log('Using demo center seed:', centerSeed);
+      return centerSeed;
+    } else {
+      console.log('Using real center seed:', realCenterSeed);
+      return realCenterSeed;
+    }
   }, [mode, centerSeed, realCenterSeed]);
 
   // Sort seeds based on selected option
@@ -728,16 +739,25 @@ if (!apiBase) {
   useEffect(() => {
     console.log('SelectedSeedId changed:', selectedSeedId);
     console.log('Current mode:', mode);
-    if (selectedSeedId) {
-      // Ensure we're in real mode when a seed is selected
-      if (mode !== "real") {
-        console.log('Switching to real mode for selected seed');
-        setMode("real");
-      }
+    if (selectedSeedId && mode === "real") {
       console.log('Fetching lineage data for seed:', selectedSeedId);
       fetchLineageData(selectedSeedId);
+    } else if (mode === "demo") {
+      // Clear real data when switching to demo mode
+      console.log('Switching to demo mode, clearing real data');
+      setRealSeeds([]);
+      setRealCenterSeed(null);
+      setLineageData(null);
     }
   }, [selectedSeedId, mode]);
+
+  // Auto-switch to real mode when a seed is selected
+  useEffect(() => {
+    if (selectedSeedId && mode === "demo") {
+      console.log('Seed selected, switching to real mode');
+      setMode("real");
+    }
+  }, [selectedSeedId, mode, setMode]);
 
   // Ensure one-time animations only run on first mount
   useEffect(() => {

@@ -238,9 +238,8 @@ const LineageTree = () => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   // New state for real data functionality
-  const [mode, setMode] = useState<"demo" | "real">("real");
   const [userSeeds, setUserSeeds] = useState<UserSeed[]>([]);
-  const { selectedSeedId, setSelectedSeedId, refreshTrigger } = useForklore();
+  const { selectedSeedId, setSelectedSeedId, refreshTrigger, mode, setMode } = useForklore();
   const [lineageData, setLineageData] = useState<LineageData | null>(null);
   const [realNodes, setRealNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(false);
@@ -379,8 +378,21 @@ if (!apiBase) {
   useEffect(() => {
     if (selectedSeedId && mode === "real") {
       fetchLineageData(selectedSeedId);
+    } else if (mode === "demo") {
+      // Clear real data when switching to demo mode
+      console.log('Switching to demo mode, clearing real data');
+      setRealNodes([]);
+      setLineageData(null);
     }
   }, [selectedSeedId, mode]);
+
+  // Auto-switch to real mode when a seed is selected
+  useEffect(() => {
+    if (selectedSeedId && mode === "demo") {
+      console.log('Seed selected, switching to real mode');
+      setMode("real");
+    }
+  }, [selectedSeedId, mode, setMode]);
 
   // Refresh data when component regains focus (e.g., after creating a fork)
   useEffect(() => {
