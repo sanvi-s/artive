@@ -22,10 +22,12 @@
     "resolveJsonModule": true,
     "noEmitOnError": false,
     "noErrorTruncation": true,
-    "ignoreDeprecations": "5.0"
+    "ignoreDeprecations": "5.0",
+    "allowJs": true,
+    "checkJs": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/types/**/*"]
+  "include": ["src/**/*", "src/types/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
 
 
