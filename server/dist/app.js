@@ -38,7 +38,47 @@ app.use((req, _res, next) => {
     logger_1.logger.info(`${req.method} ${req.originalUrl} [rid=${rid}]`);
     next();
 });
-app.use((0, cors_1.default)(currentConfig.cors));
+// CORS configuration with multiple allowed origins
+const allowedOrigins = [
+    "https://artiveartofforgottenthings.vercel.app",
+    "http://localhost:5173", // for local dev
+    "http://localhost:3000" // alternative local dev port
+];
+app.use((0, cors_1.default)({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin)
+            return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        }
+        else {
+            console.log(`CORS blocked origin: ${origin}`);
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
+}));
+// Handle preflight requests for all routes - using middleware instead of wildcard route
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        const origin = req.headers.origin;
+        if (allowedOrigins.includes(origin) || !origin) {
+            res.header("Access-Control-Allow-Origin", origin || "*");
+            res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+            res.header("Access-Control-Allow-Credentials", "true");
+            res.sendStatus(200);
+        }
+        else {
+            res.status(403).send('CORS blocked');
+        }
+    }
+    else {
+        next();
+    }
+});
 const limiter = (0, express_rate_limit_1.default)(currentConfig.rateLimit);
 // Apply limiter only to write routes later; for now, apply globally low limits
 app.use(limiter);
