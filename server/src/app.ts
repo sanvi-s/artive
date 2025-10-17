@@ -39,7 +39,33 @@ app.use((req: any, _res: any, next: any) => {
   next();
 });
 
-app.use(cors((currentConfig as any).cors));
+// CORS configuration with multiple allowed origins
+const allowedOrigins = [
+  "https://artiveartofforgottenthings.vercel.app",
+  "http://localhost:5173", // for local dev
+  "http://localhost:3000"  // alternative local dev port
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log(`CORS blocked origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
+  })
+);
+
+// Handle preflight requests
+app.options("*", cors());
 
 const limiter = rateLimit((currentConfig as any).rateLimit);
 
