@@ -14,7 +14,7 @@ export const productionConfig = {
   
   // Production CORS configuration
   cors: {
-    origin: process.env.FRONTEND_ORIGIN || 'https://artive.vercel.app',
+    origin: process.env.FRONTEND_ORIGIN || 'https://artiveartofforgottenthings.vercel.app',
     credentials: true,
     optionsSuccessStatus: 200,
   } as any,

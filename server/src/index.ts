@@ -5,14 +5,29 @@ import { connectWithRetry, disconnect } from './db/mongoose';
 
 async function start() {
   try {
+    logger.info('Starting server...');
+    logger.info(`Environment: ${config.env}`);
+    logger.info(`Port: ${config.port}`);
+    
     await connectWithRetry(3);
+    logger.info('Connected to MongoDB successfully');
   } catch (err) {
     logger.error(`Failed to connect to MongoDB: ${(err as Error).message}`);
     process.exit(1);
   }
 
   const server = app.listen(config.port, () => {
-    logger.info(`Server listening on port ${config.port}`);
+    logger.info(`🚀 Server listening on port ${config.port}`);
+    logger.info(`🌍 Environment: ${config.env}`);
+    logger.info(`🔗 CORS Origin: ${(config as any).cors?.origin || 'Not set'}`);
+  });
+
+  // Add error handling for the server
+  server.on('error', (err: any) => {
+    logger.error(`Server error: ${err.message}`);
+    if (err.code === 'EADDRINUSE') {
+      logger.error(`Port ${config.port} is already in use`);
+    }
   });
 
   const shutdown = async (signal: string) => {
