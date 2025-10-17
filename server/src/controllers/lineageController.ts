@@ -117,8 +117,8 @@ async function findRootSeed(id: string): Promise<string | null> {
       // Check if current ID is a fork, get its parent
       const fork = await Fork.findById(currentId).lean();
       if (fork) {
-        console.log(`🔀 Found fork, parent: ${fork.parentSeed}`);
-        currentId = String(fork.parentSeed);
+        console.log(`🔀 Found fork, parent: ${(fork as any).parentSeed}`);
+        currentId = String((fork as any).parentSeed);
       } else {
         console.log(`❌ Node not found: ${currentId}`);
         break; // Not found, break the loop

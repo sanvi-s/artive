@@ -29,19 +29,19 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(morgan('tiny'));
 
 // Attach a request id and log arrivals
-app.use((req, _res, next) => {
+app.use((req: any, _res: any, next: any) => {
   (req as any).id = req.headers['x-request-id'] || randomUUID();
   next();
 });
-app.use((req, _res, next) => {
+app.use((req: any, _res: any, next: any) => {
   const rid = (req as any).id;
   logger.info(`${req.method} ${req.originalUrl} [rid=${rid}]`);
   next();
 });
 
-app.use(cors(currentConfig.cors));
+app.use(cors(currentConfig.cors as any));
 
-const limiter = rateLimit(currentConfig.rateLimit);
+const limiter = rateLimit(currentConfig.rateLimit as any);
 
 // Apply limiter only to write routes later; for now, apply globally low limits
 app.use(limiter);

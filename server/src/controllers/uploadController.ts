@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import streamifier from 'streamifier';
 import { cloudinary } from '../services/cloudinaryService';
 
-export async function uploadToCloudinary(req: Request, res: Response) {
-  const file = (req as any).file as Express.Multer.File | undefined;
+export async function uploadToCloudinary(req: any, res: any) {
+  const file = (req as any).file as any;
   if (!file) return res.status(400).json({ error: { message: 'Missing file field' } });
   
   // Validate file type

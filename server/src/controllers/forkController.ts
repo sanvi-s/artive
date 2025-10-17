@@ -20,7 +20,7 @@ async function findRootSeed(id: string): Promise<string | null> {
     // Check if current ID is a fork, get its parent
     const fork = await Fork.findById(currentId).lean();
     if (fork) {
-      currentId = String(fork.parentSeed);
+      currentId = String((fork as any).parentSeed);
     } else {
       break; // Not found, break the loop
     }
@@ -184,7 +184,7 @@ export async function listForksInspiredByUser(req: Request, res: Response) {
     return [...forkIds, ...nestedForkIds];
   };
 
-  const allInspiredForkIds = await getAllInspiredForks(seedIds);
+  const allInspiredForkIds = await getAllInspiredForks(seedIds as any);
   
   // Get all forks that were inspired by the user's seeds (including nested forks)
   const allParentIds = [...seedIds, ...allInspiredForkIds];

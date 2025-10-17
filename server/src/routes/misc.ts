@@ -3,7 +3,7 @@ import { config } from '../config';
 
 const router = Router();
 
-router.get('/health', (_req, res) => {
+router.get('/health', (_req: any, res: any) => {
   res.json({ 
     ok: true, 
     env: config.env,
@@ -14,11 +14,11 @@ router.get('/health', (_req, res) => {
   });
 });
 
-router.get('/version', (_req, res) => {
+router.get('/version', (_req: any, res: any) => {
   res.json({ version: config.version });
 });
 
-router.get('/config', (_req, res) => {
+router.get('/config', (_req: any, res: any) => {
   res.json({
     apiBase: config.apiBaseUrl,
     cloudinaryCloudName: config.cloudinary.cloudName,

@@ -17,7 +17,7 @@ export const productionConfig = {
     origin: process.env.FRONTEND_ORIGIN || 'https://artive.vercel.app',
     credentials: true,
     optionsSuccessStatus: 200,
-  },
+  } as any,
   
   // Production rate limiting (more restrictive)
   rateLimit: {
@@ -26,7 +26,7 @@ export const productionConfig = {
     message: 'Too many requests from this IP, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
-  },
+  } as any,
   
   // Production security headers
   security: {
