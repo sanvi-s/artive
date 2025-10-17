@@ -2,7 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
-import { ArrowLeft, Layout, Download, Undo2, Redo2, Play, Database } from "lucide-react";
+import { ArrowLeft, Layout, Download, Undo2, Redo2, Play, Database, RefreshCw } from "lucide-react";
 import { useState, useRef, useMemo, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -240,7 +240,7 @@ const LineageTree = () => {
   // New state for real data functionality
   const [mode, setMode] = useState<"demo" | "real">("real");
   const [userSeeds, setUserSeeds] = useState<UserSeed[]>([]);
-  const { selectedSeedId, setSelectedSeedId } = useForklore();
+  const { selectedSeedId, setSelectedSeedId, refreshTrigger } = useForklore();
   const [lineageData, setLineageData] = useState<LineageData | null>(null);
   const [realNodes, setRealNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(false);
@@ -322,7 +322,15 @@ const LineageTree = () => {
         { from: "12", to: "16" }, // Practical Palette -> Palette Studies
       ];
     } else {
-      return lineageData?.edges || [];
+      // Convert edges from { parent, child } format to { from, to } format
+      const edges = lineageData?.edges || [];
+      console.log('🌳 Raw edges from API:', edges);
+      const connections = edges.map(edge => ({
+        from: edge.parent,
+        to: edge.child
+      }));
+      console.log('🌳 Converted connections:', connections);
+      return connections;
     }
   }, [mode, lineageData]);
 
@@ -338,7 +346,7 @@ const LineageTree = () => {
       if (!isAuthenticated || !user) return;
 
       try {
-        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
         const token = localStorage.getItem("token");
         
         if (!token) return;
@@ -371,13 +379,34 @@ const LineageTree = () => {
     }
   }, [selectedSeedId, mode]);
 
+  // Refresh data when component regains focus (e.g., after creating a fork)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (selectedSeedId && mode === "real") {
+        console.log('🔄 Component focused, refreshing lineage data');
+        refreshLineageData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [selectedSeedId, mode]);
+
+  // Listen for refresh trigger from context (e.g., when fork is created)
+  useEffect(() => {
+    if (refreshTrigger > 0 && selectedSeedId && mode === "real") {
+      console.log('🔄 Refresh triggered from context, refreshing lineage data');
+      refreshLineageData();
+    }
+  }, [refreshTrigger, selectedSeedId, mode]);
+
   // Fetch lineage data when seed is selected
   const fetchLineageData = async (seedId: string) => {
     if (!seedId) return;
     
     setLoading(true);
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
       const token = localStorage.getItem("token");
       
       const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=3`, {
@@ -387,7 +416,9 @@ const LineageTree = () => {
       if (res.ok) {
         const data = await res.json();
         setLineageData(data);
-        buildRealTree(data, seedId);
+        // Use the first node as the root seed ID for positioning
+        const rootSeedId = data.nodes && data.nodes.length > 0 ? data.nodes[0] : seedId;
+        buildRealTree(data, rootSeedId);
       } else {
         toast({
           title: "Error",
@@ -407,93 +438,162 @@ const LineageTree = () => {
     }
   };
 
+  // Refresh lineage data - can be called externally
+  const refreshLineageData = async () => {
+    if (selectedSeedId && mode === "real") {
+      console.log('🔄 Refreshing lineage data for:', selectedSeedId);
+      await fetchLineageData(selectedSeedId);
+    }
+  };
+
   // Build real tree from lineage data
   const buildRealTree = async (lineageData: LineageData, rootSeedId: string) => {
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
       const token = localStorage.getItem("token");
       
-      // Fetch details for all nodes including their forks
-      const nodeDetails = await Promise.all(
-        lineageData.nodes.map(async (nodeId) => {
-          const res = await fetch(`${apiBase}/api/seeds/${nodeId}`, {
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            // The API returns { seed, forks }, so we need both
-            return { seed: data.seed, forks: data.forks || [] };
-          }
-          return null;
-        })
-      );
-
-      // Filter out failed requests and build nodes
-      const validNodeDetails = nodeDetails.filter(Boolean);
-      const allNodes: Node[] = [];
+      console.log('🌳 Building tree with lineage data:', lineageData);
+      console.log('🌳 Nodes to fetch:', lineageData.nodes);
+      console.log('🌳 Edges from API:', lineageData.edges);
       
-      // Add main seeds as nodes
-      validNodeDetails.forEach((nodeDetail) => {
-        const seed = nodeDetail.seed;
-        allNodes.push({
-          id: seed._id,
-          title: seed.title,
-          author: seed.author?.displayName || seed.author?.username || 'Unknown',
-          image: seed.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${seed.author?.displayName?.charAt(0) || 'U'}`,
-          x: 0, // Will be calculated
-          y: 0, // Will be calculated
-          forks: seed.forkCount || 0,
-          date: new Date(seed.createdAt).toISOString().split('T')[0],
-          type: seed._id === rootSeedId ? "original" : "fork",
-          seedType: seed.type,
-          content: seed.contentFull || seed.contentSnippet || ''
-        } as any);
-
-        // Add forks as separate nodes
-        nodeDetail.forks.forEach((fork: any) => {
-          const originalContent = seed.contentFull || seed.contentSnippet || '';
-          const forkContent = fork.content || fork.summary || fork.contentDelta || '';
-          const combinedContent = originalContent && forkContent
-            ? `${originalContent}\n${forkContent}`
-            : (forkContent || originalContent);
-          allNodes.push({
-            id: fork._id,
-            title: fork.title || fork.summary || 'Fork',
-            author: fork.author?.displayName || fork.author?.username || 'Anonymous',
-            image: fork.thumbnailUrl || fork.parentSeed?.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${fork.author?.displayName?.charAt(0) || 'F'}`,
-            x: 0, // Will be calculated
-            y: 0, // Will be calculated
-            forks: 0,
-            date: new Date(fork.createdAt).toISOString().split('T')[0],
-            type: "fork",
-            seedType: fork.type || 'text',
-            content: combinedContent,
-            parentId: fork.parentSeed?._id || seed._id
-          } as any);
+      // Fetch details for each unique node only once
+      const nodeDetailsMap = new Map();
+      
+      for (const nodeId of lineageData.nodes) {
+        if (nodeDetailsMap.has(nodeId)) continue; // Skip if already fetched
+        
+        console.log('🌳 Fetching details for node:', nodeId);
+        
+        // Add a small delay to prevent rate limiting
+        if (nodeDetailsMap.size > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+        }
+        
+        const res = await fetch(`${apiBase}/api/seeds/${nodeId}/details`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
         });
-      });
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log('🌳 Node details fetched:', data);
+          
+          if (data.type === 'seed') {
+            console.log('🌳 Seed data for', nodeId, ':', {
+              id: data.seed._id,
+              title: data.seed.title,
+              type: data.seed.type,
+              forkCount: data.seed.forkCount
+            });
+            
+            nodeDetailsMap.set(nodeId, {
+              id: data.seed._id,
+              title: data.seed.title,
+              author: data.seed.author?.displayName || data.seed.author?.username || 'Unknown',
+              image: data.seed.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${data.seed.author?.displayName?.charAt(0) || 'U'}`,
+              x: 0, // Will be calculated
+              y: 0, // Will be calculated
+              forks: data.seed.forkCount || 0,
+              date: new Date(data.seed.createdAt).toISOString().split('T')[0],
+              type: data.seed._id === rootSeedId ? "original" : "fork",
+              seedType: data.seed.type,
+              content: data.seed.contentFull || data.seed.contentSnippet || ''
+            });
+          } else if (data.type === 'fork') {
+            const fork = data.fork;
+            const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || '';
+            const forkContent = fork.contentDelta || fork.summary || '';
+            const forkDescription = fork.description || '';
+            const combinedContent = forkContent || forkDescription || originalContent;
+            
+            nodeDetailsMap.set(nodeId, {
+              id: fork._id,
+              title: fork.title || fork.summary || 'Fork',
+              author: fork.author?.displayName || fork.author?.username || 'Anonymous',
+              image: fork.imageUrl || fork.thumbnailUrl || fork.parentSeed?.imageUrl || fork.parentSeed?.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${fork.author?.displayName?.charAt(0) || 'F'}`,
+              x: 0, // Will be calculated
+              y: 0, // Will be calculated
+              forks: fork.forkCount || 0,
+              date: new Date(fork.createdAt).toISOString().split('T')[0],
+              type: "fork",
+              seedType: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
+              content: combinedContent,
+              parentId: fork.parentSeed?._id
+            });
+          }
+        } else {
+          if (res.status === 429) {
+            console.warn('🌳 Rate limited, waiting before retry for:', nodeId);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            // Retry once
+            const retryRes = await fetch(`${apiBase}/api/seeds/${nodeId}/details`, {
+              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+            });
+            if (retryRes.ok) {
+              const retryData = await retryRes.json();
+              console.log('🌳 Node details fetched on retry:', retryData);
+              // Process the retry data the same way...
+              if (retryData.type === 'seed') {
+                nodeDetailsMap.set(nodeId, {
+                  id: retryData.seed._id,
+                  title: retryData.seed.title,
+                  author: retryData.seed.author?.displayName || retryData.seed.author?.username || 'Unknown',
+                  image: retryData.seed.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${retryData.seed.author?.displayName?.charAt(0) || 'U'}`,
+                  x: 0,
+                  y: 0,
+                  forks: retryData.seed.forkCount || 0,
+                  date: new Date(retryData.seed.createdAt).toISOString().split('T')[0],
+                  type: retryData.seed._id === rootSeedId ? "original" : "fork",
+                  seedType: retryData.seed.type,
+                  content: retryData.seed.contentFull || retryData.seed.contentSnippet || ''
+                });
+              } else if (retryData.type === 'fork') {
+                const fork = retryData.fork;
+                const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || '';
+                const forkContent = fork.contentDelta || fork.summary || '';
+                const forkDescription = fork.description || '';
+                const combinedContent = forkContent || forkDescription || originalContent;
+                
+                nodeDetailsMap.set(nodeId, {
+                  id: fork._id,
+                  title: fork.title || fork.summary || 'Fork',
+                  author: fork.author?.displayName || fork.author?.username || 'Anonymous',
+                  image: fork.imageUrl || fork.thumbnailUrl || fork.parentSeed?.imageUrl || fork.parentSeed?.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${fork.author?.displayName?.charAt(0) || 'F'}`,
+                  x: 0,
+                  y: 0,
+                  forks: fork.forkCount || 0,
+                  date: new Date(fork.createdAt).toISOString().split('T')[0],
+                  type: "fork",
+                  seedType: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
+                  content: combinedContent,
+                  parentId: fork.parentSeed?._id
+                });
+              }
+            } else {
+              console.warn('🌳 Retry also failed for:', nodeId, retryRes.status);
+            }
+          } else {
+            console.warn('🌳 Failed to fetch node details for:', nodeId, res.status);
+          }
+        }
+      }
 
-      // Create edges for the tree structure
-      const edges = [];
-      validNodeDetails.forEach((nodeDetail) => {
-        const seed = nodeDetail.seed;
-        nodeDetail.forks.forEach((fork: any) => {
-          edges.push({
-            from: seed._id,
-            to: fork._id
-          });
-        });
-      });
+      // Convert map to array of nodes
+      const allNodes: Node[] = Array.from(nodeDetailsMap.values());
+      console.log('🌳 Built nodes:', allNodes);
 
-      // Update lineage data with the edges
-      console.log('🌳 Created edges for tree:', edges);
-      setLineageData(prev => ({
-        ...prev,
-        edges: edges
+      // Use the edges from the lineage API directly (they're already in the correct format)
+      const edges = lineageData.edges.map(edge => ({
+        from: edge.parent,
+        to: edge.child
       }));
+      console.log('🌳 Using edges from API:', edges);
 
       // Calculate positions using tree layout algorithm
+      console.log('🌳 About to calculate positions for root:', rootSeedId);
+      console.log('🌳 Nodes to position:', allNodes.length);
+      console.log('🌳 Edges to use:', edges.length);
       const positionedNodes = calculateTreePositions(allNodes, edges, rootSeedId);
+      console.log('🌳 Final positioned nodes:', positionedNodes.length);
       setRealNodes(positionedNodes);
     } catch (error) {
       console.error('Failed to build real tree:', error);
@@ -547,10 +647,15 @@ const LineageTree = () => {
     const levelSpacing = 120;
     const nodeSpacing = 180;
 
+    // Calculate the total width needed for the entire tree
+    const maxLevelWidth = Math.max(...Array.from(levelGroups.values()).map(nodes => nodes.length));
+    const totalTreeWidth = (maxLevelWidth - 1) * nodeSpacing;
+    const treeCenterX = 500;
+
     levelGroups.forEach((levelNodes, level) => {
       const y = 100 + level * levelSpacing;
-      const totalWidth = (levelNodes.length - 1) * nodeSpacing;
-      const startX = 500 - totalWidth / 2;
+      const levelWidth = (levelNodes.length - 1) * nodeSpacing;
+      const startX = treeCenterX - levelWidth / 2;
 
       levelNodes.forEach((node, index) => {
         positionedNodes.push({
@@ -560,6 +665,14 @@ const LineageTree = () => {
         });
       });
     });
+
+    // Debug logging for tree positioning
+    console.log('🌳 Tree positioning debug:');
+    console.log('🌳 Root ID:', rootId);
+    console.log('🌳 Total nodes:', positionedNodes.length);
+    console.log('🌳 Level groups:', Array.from(levelGroups.entries()).map(([level, nodes]) => ({ level, count: nodes.length })));
+    console.log('🌳 Children map:', Array.from(childrenMap.entries()).map(([parent, children]) => ({ parent, children })));
+    console.log('🌳 Positioned nodes:', positionedNodes.map(n => ({ id: n.id, title: n.title, x: n.x, y: n.y, type: n.type })));
 
     return positionedNodes;
   };
@@ -792,6 +905,18 @@ const LineageTree = () => {
                 Loading lineage...
               </div>
             )}
+            {selectedSeedId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshLineageData}
+                disabled={loading}
+                className="w-full mt-2 text-xs"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Refresh Fork Counts
+              </Button>
+            )}
           </div>
         )}
 
@@ -931,6 +1056,15 @@ const LineageTree = () => {
           {currentConnections.map((conn, index) => {
             const fromNode = currentNodes.find(n => n.id === conn.from);
             const toNode = currentNodes.find(n => n.id === conn.to);
+            
+            // Debug logging for branch rendering
+            if (!fromNode) {
+              console.warn('🌳 Branch rendering: fromNode not found for connection:', conn.from, 'in nodes:', currentNodes.map(n => n.id));
+            }
+            if (!toNode) {
+              console.warn('🌳 Branch rendering: toNode not found for connection:', conn.to, 'in nodes:', currentNodes.map(n => n.id));
+            }
+            
             if (!fromNode || !toNode) return null;
 
             const toLevel = nodeLevelByY(toNode.y);
@@ -947,17 +1081,15 @@ const LineageTree = () => {
               </linearGradient>
             );
 
-            // Standard branch styling
-            const strokeW = 1.2;
+            // Make branches with brown border and brown fill - slim
+            const strokeW = 2.0;
             return (
               <g key={index}>
                 <defs>{grad}</defs>
-                {/* halo */}
-                <path d={d} fill="none" stroke="rgba(139,69,19,0.15)" strokeWidth={strokeW + 1.2} strokeLinecap="round" strokeLinejoin="round" opacity={0.4} />
-                {/* base textured stroke */}
-                <path d={d} fill="none" stroke="rgba(139,69,19,0.25)" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" style={{ filter: "url(#branchRough)" }} opacity={0.8} className="animate-[brush-reveal_2.4s_var(--ease-organic)]" strokeDasharray={600} strokeDashoffset={0} />
-                {/* tip accent to fake taper */}
-                <path d={d} fill="none" stroke="rgba(139,69,19,0.35)" strokeWidth={0.8} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+                {/* Dark brown border/outline */}
+                <path d={d} fill="none" stroke="#654321" strokeWidth={strokeW + 0.5} strokeLinecap="round" strokeLinejoin="round" opacity={1.0} />
+                {/* Light brown fill */}
+                <path d={d} fill="none" stroke="#8B4513" strokeWidth={strokeW} strokeLinecap="round" strokeLinejoin="round" opacity={1.0} />
               </g>
             );
           })}
@@ -999,22 +1131,20 @@ const LineageTree = () => {
                   transform={transform}
                 />
 
-                {/* Fork count badge with gradient and shadow */}
-                {node.forks > 0 && (
-                  <g>
-                    <defs>
-                      <linearGradient id={`badge-${node.id}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#ff7eb3" />
-                        <stop offset="100%" stopColor="#ff4da6" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx={node.x + size * 0.6} cy={node.y - size * 0.7} r="13" fill={isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.1)'} />
-                    <circle cx={node.x + size * 0.6} cy={node.y - size * 0.7} r="11" fill={`url(#badge-${node.id})`} style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))' }} />
-                    <text x={node.x + size * 0.6} y={node.y - size * 0.7 + 4} textAnchor="middle" className="text-xs fill-white font-bold">
-                      {node.forks}
-                    </text>
-                  </g>
-                )}
+                {/* Fork count badge with gradient and shadow - always show */}
+                <g>
+                  <defs>
+                    <linearGradient id={`badge-${node.id}`} x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#ff7eb3" />
+                      <stop offset="100%" stopColor="#ff4da6" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx={node.x + size * 0.6} cy={node.y - size * 0.7} r="13" fill={isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.1)'} />
+                  <circle cx={node.x + size * 0.6} cy={node.y - size * 0.7} r="11" fill={`url(#badge-${node.id})`} style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))' }} />
+                  <text x={node.x + size * 0.6} y={node.y - size * 0.7 + 4} textAnchor="middle" className="text-xs fill-white font-bold">
+                    {node.forks}
+                  </text>
+                </g>
 
 
                 {/* Labels - high-contrast pills for dark mode */}
@@ -1286,6 +1416,10 @@ const LineageTree = () => {
         isOpen={isModalOpen}
         onClose={handleModalClose}
         onFork={handleFork}
+        onForkCreated={() => {
+          console.log('🔄 Fork created, triggering lineage refresh');
+          refreshLineageData();
+        }}
       />
     </div>
   );

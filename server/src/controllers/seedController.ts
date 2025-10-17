@@ -55,6 +55,59 @@ export async function getSeed(req: Request, res: Response) {
   res.json({ seed, forks });
 }
 
+// Unified endpoint to get either a seed or fork with their children
+export async function getSeedOrFork(req: Request, res: Response) {
+  const { id } = req.params as { id: string };
+  const full = String(req.query.full || 'false') === 'true';
+  
+  if (!mongoose.isValidObjectId(id)) {
+    return res.status(400).json({ error: { message: 'Invalid id' } });
+  }
+
+  try {
+    // First try to find as a seed
+    const projection: any = full ? {} : { contentFull: 0 };
+    const seed = await Seed.findById(id, projection)
+      .populate('author', 'username displayName avatarUrl')
+      .lean<ISeed>();
+    
+    if (seed && !seed.deletedAt) {
+      // Found as seed, get its forks
+      const forks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(id) })
+        .populate('author', 'username displayName avatarUrl')
+        .sort('-createdAt')
+        .limit(10)
+        .lean();
+      
+      return res.json({ seed, forks, type: 'seed' });
+    }
+    
+    // Not found as seed, try as fork
+    const fork = await Fork.findById(id)
+      .populate('author', 'username displayName avatarUrl')
+      .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull createdAt')
+      .lean();
+    
+    if (fork) {
+      // Found as fork, get its forks
+      const forks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(id) })
+        .populate('author', 'username displayName avatarUrl')
+        .sort('-createdAt')
+        .limit(10)
+        .lean();
+      
+      return res.json({ fork, forks, type: 'fork' });
+    }
+    
+    // Not found as either
+    return res.status(404).json({ error: { message: 'Not found' } });
+    
+  } catch (error) {
+    console.error('Error fetching seed or fork:', error);
+    return res.status(500).json({ error: { message: 'Internal server error' } });
+  }
+}
+
 export async function createSeed(req: Request & { userId?: string }, res: Response) {
   if (!req.userId) return res.status(401).json({ error: { message: 'Unauthorized' } });
   const title = clampString(req.body?.title, 120);

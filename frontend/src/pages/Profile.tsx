@@ -252,7 +252,7 @@ const Profile = () => {
                 type: 'visual',
                 image: s.thumbnailUrl,
                 alt: s.title,
-                description: s.contentSnippet || '',
+                content: s.contentSnippet || '',
               } as Seed;
             }
             // default to text for poem/other content
@@ -400,7 +400,7 @@ const Profile = () => {
             createdAt: new Date().toISOString(),
             image: seedData.image,
             alt: seedData.title,
-            description: (seedData as any).description || '',
+            content: (seedData as any).description || '',
           } as any;
           setMySeedsDisplay((prev) => [optimistic, ...prev]);
         }
@@ -825,7 +825,7 @@ const Profile = () => {
 
 
         {/* Forks you've inspired */}
-        <section>
+        <section className="mb-24">
           <h2 className="font-display text-2xl mb-6">Forks you've inspired</h2>
           {inspiredForksState.length === 0 ? (
             <div className="text-sm text-muted-foreground">No forks yet. Share seeds to inspire others.</div>
@@ -834,21 +834,26 @@ const Profile = () => {
               {inspiredForksState.map((f: any, index: number) => {
                 // Transform fork data to seed format for UnifiedSeedCard
                 const originalContent = f.parentSeed?.contentFull || f.parentSeed?.contentSnippet || f.parentSeed?.content || '';
-                const forkContent = f.content || f.summary || '';
+                const forkContent = f.contentDelta || f.summary || '';
                 
-                // Create combined content showing both original and new text
-                const combinedContent = originalContent && forkContent 
-                  ? `${originalContent}\n${forkContent}`
-                  : forkContent || originalContent;
+                // For forks, just show the fork's own content to avoid duplication
+                // The parent content is already shown in the parent fork/seed
+                const combinedContent = forkContent || originalContent;
+                
+                console.log('🔍 Fork data for inspired fork:', f);
+                console.log('🔍 Has imageUrl:', !!f.imageUrl);
+                console.log('🔍 Has thumbnailUrl:', !!f.thumbnailUrl);
+                console.log('🔍 Parent seed imageUrl:', !!f.parentSeed?.imageUrl);
+                console.log('🔍 Parent seed thumbnailUrl:', !!f.parentSeed?.thumbnailUrl);
                 
                 const forkAsSeed = {
                   id: f._id,
                   title: f.title || f.summary || 'Untitled Fork',
-                  type: f.type || 'text',
+                  type: (f.imageUrl || f.thumbnailUrl) ? 'visual' : 'text',
                   author: f.author?.displayName || f.author?.username || 'Anonymous',
                   authorId: f.author?._id,
                   time: new Date(f.createdAt).toLocaleDateString(),
-                  forks: 0, // This is a fork, not a seed
+                  forks: f.forkCount || 0, // Use the fork's own fork count
                   sparks: 0,
                   category: f.category || 'general',
                   tags: f.tags || [],
@@ -860,6 +865,7 @@ const Profile = () => {
                   contentFull: combinedContent,
                   thumbnailUrl: f.thumbnailUrl || f.parentSeed?.thumbnailUrl,
                   imageUrl: f.imageUrl || f.parentSeed?.imageUrl,
+                  image: f.imageUrl || f.parentSeed?.imageUrl || f.thumbnailUrl || f.parentSeed?.thumbnailUrl,
                   avatarUrl: f.author?.avatarUrl,
                   isThread: false,
                   threadIndex: undefined,
@@ -873,11 +879,12 @@ const Profile = () => {
                   originalSeedContent: originalContent,
                   originalSeedTitle: f.parentSeed?.title,
                   forkContent: forkContent,
+                  description: f.description || '',
                 } as any;
 
                 return (
                   <div key={`fork-${f._id}-${index}`}>
-                    {(f.type === 'text' || !f.type) ? (
+                    {(forkAsSeed.type === 'text') ? (
                       <TextCard
                         seed={forkAsSeed as any}
                         className="animate-fade-in-up h-full"
@@ -914,7 +921,7 @@ const Profile = () => {
         </section>
 
         {/* Seeds you have forked */}
-        <section>
+        <section className="mb-24">
           <h2 className="font-display text-2xl mb-6">Seeds you have forked</h2>
           {myForksState.length === 0 ? (
             <div className="text-sm text-muted-foreground">No forks yet. Explore seeds and fork them to build on others' ideas.</div>
@@ -923,20 +930,37 @@ const Profile = () => {
               {myForksState.map((fork: any, index: number) => {
                 // Transform fork data to seed format for UnifiedSeedCard
                 const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || fork.parentSeed?.content || '';
-                const forkContent = fork.content || fork.summary || '';
+                const forkContent = fork.contentDelta || fork.summary || '';
                 
-                // Create combined content showing both original and new text
-                const combinedContent = originalContent && forkContent 
-                  ? `${originalContent}\n${forkContent}`
-                  : forkContent || originalContent;
+                // For forks, just show the fork's own content to avoid duplication
+                // The parent content is already shown in the parent fork/seed
+                // For visual forks, prioritize the description
+                const isVisualFork = (fork.imageUrl || fork.thumbnailUrl);
+                const combinedContent = isVisualFork 
+                  ? (fork.description || forkContent || originalContent)
+                  : (forkContent || originalContent);
+                
+                console.log('🔍 Fork data for my fork:', fork);
+                console.log('🔍 Fork content:', forkContent);
+                console.log('🔍 Original content:', originalContent);
+                console.log('🔍 Combined content:', combinedContent);
+                console.log('🔍 Fork description:', fork.description);
+                console.log('🔍 Has imageUrl:', !!fork.imageUrl);
+                console.log('🔍 Has thumbnailUrl:', !!fork.thumbnailUrl);
+                console.log('🔍 Parent seed imageUrl:', !!fork.parentSeed?.imageUrl);
+                console.log('🔍 Parent seed thumbnailUrl:', !!fork.parentSeed?.thumbnailUrl);
+                
+                const finalImageUrl = fork.imageUrl || fork.parentSeed?.imageUrl || fork.thumbnailUrl || fork.parentSeed?.thumbnailUrl;
+                console.log('🔍 Final image URL:', finalImageUrl);
+                console.log('🔍 Detected type:', (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text');
                 
                 const forkAsSeed = {
                   id: fork._id,
                   title: fork.title || fork.summary || 'My Fork',
-                  type: fork.type || 'text',
+                  type: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
                   author: 'You', // This is the user's own fork
                   time: new Date(fork.createdAt).toLocaleDateString(),
-                  forks: 0, // This is a fork, not a seed
+                  forks: fork.forkCount || 0, // Use the fork's own fork count
                   sparks: 0,
                   category: fork.category || 'general',
                   tags: fork.tags || [],
@@ -948,6 +972,7 @@ const Profile = () => {
                   contentFull: combinedContent,
                   thumbnailUrl: fork.thumbnailUrl || fork.parentSeed?.thumbnailUrl,
                   imageUrl: fork.imageUrl || fork.parentSeed?.imageUrl,
+                  image: fork.imageUrl || fork.parentSeed?.imageUrl || fork.thumbnailUrl || fork.parentSeed?.thumbnailUrl,
                   avatarUrl: me?.avatarUrl, // User's own avatar
                   isThread: false,
                   threadIndex: undefined,
@@ -962,10 +987,15 @@ const Profile = () => {
                   originalSeedTitle: fork.parentSeed?.title,
                   forkContent: forkContent,
                 } as any;
+                
+                console.log('🔍 Final forkAsSeed object:', forkAsSeed);
+                console.log('🔍 Final seed image field:', forkAsSeed.image);
+                console.log('🔍 Final seed content field:', forkAsSeed.content);
+                console.log('🔍 Content length:', forkAsSeed.content?.length);
 
                 return (
                   <div key={`my-fork-${fork._id}-${index}`}>
-                    {(fork.type === 'text' || !fork.type) ? (
+                    {(forkAsSeed.type === 'text') ? (
                       <TextCard
                         seed={forkAsSeed as any}
                         className="animate-fade-in-up h-full"
@@ -1002,7 +1032,7 @@ const Profile = () => {
         </section>
 
         {/* Creative lineage (mini) */}
-        <section>
+        <section className="mt-32">
           <h2 className="font-display text-2xl mb-6">Your Creative Lineage</h2>
           <div className="bg-card/50 backdrop-blur-sm p-8 rounded-lg torn-edge-soft shadow-paper flex flex-col items-center justify-center space-y-4">
             <p className="text-muted-foreground text-center">

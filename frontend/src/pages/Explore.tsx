@@ -7,6 +7,7 @@ import { InkCursor } from "@/components/InkCursor";
 import { Search, SortAsc, Filter, Heart, Share2, Bookmark } from "lucide-react";
 import { UnifiedSeedCard } from "@/components/UnifiedSeedCard";
 import { SeedViewModal } from "@/components/SeedViewModal";
+import { ForkModal } from "@/components/ForkModal";
 import { Seed } from "@/types/seed";
 
 const categories = ["Text", "Visual", "Music", "Code"];
@@ -18,6 +19,8 @@ const Explore = () => {
   const [selectedSort, setSelectedSort] = useState("New");
   const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isForkModalOpen, setIsForkModalOpen] = useState(false);
+  const [forkSeedMeta, setForkSeedMeta] = useState<{ id: string; type: string } | null>(null);
   const [allSeeds, setAllSeeds] = useState<Seed[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,7 +80,8 @@ const Explore = () => {
         const forks: Seed[] = (forksData.items || []).map((f: any) => {
           const originalContent = f.parentSeed?.contentFull || f.parentSeed?.contentSnippet || f.parentSeed?.content || '';
           const forkContent = f.contentDelta || f.summary || f.content || '';
-          const combinedContent = forkContent || originalContent;
+          const forkDescription = f.description || '';
+          const combinedContent = forkContent || forkDescription || originalContent;
           
           return {
             id: f._id,
@@ -90,7 +94,7 @@ const Explore = () => {
             sparks: 0,
             category: 'general',
             tags: [],
-            type: 'text', // Forks are always text
+            type: (f.imageUrl || f.thumbnailUrl) ? 'visual' : 'text',
             content: combinedContent,
             excerpt: combinedContent.slice(0, 200) || f.summary || 'Fork',
             image: f.thumbnailUrl || f.imageUrl || '',
@@ -166,7 +170,11 @@ const Explore = () => {
 
   const handleForkSeed = (seedId: string) => {
     console.log('Forking seed:', seedId);
-    // Here you would typically handle the fork logic
+    const seed = allSeeds.find(s => s.id === seedId);
+    if (seed) {
+      setForkSeedMeta({ id: seedId, type: seed.type });
+      setIsForkModalOpen(true);
+    }
   };
 
   return (
@@ -277,6 +285,18 @@ const Explore = () => {
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         onFork={handleForkSeed}
+        onForkCreated={refreshSeedsAndForks}
+      />
+
+      {/* Fork Modal */}
+      <ForkModal
+        isOpen={isForkModalOpen}
+        onClose={() => {
+          setIsForkModalOpen(false);
+          setForkSeedMeta(null);
+        }}
+        seedId={forkSeedMeta?.id || null}
+        seedType={forkSeedMeta?.type as 'text' | 'visual' | 'music' | 'code' | 'other'}
         onForkCreated={refreshSeedsAndForks}
       />
     </div>

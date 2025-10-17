@@ -29,19 +29,87 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork, onForkCreated }: 
     onClose();
   };
 
-  const handleOpenForklore = () => {
+  const handleOpenForklore = async () => {
     console.log('Opening Forklore for seed:', seed);
     console.log('Seed ID:', seed.id);
     console.log('Is Forked:', seed.isForked);
     console.log('Parent ID:', seed.parentId);
     
-    // If this is a fork, use the parent seed ID for lineage
-    const seedIdForLineage = seed.isForked && seed.parentId ? seed.parentId : seed.id;
-    console.log('Using seed ID for lineage:', seedIdForLineage);
+    // For Forklore, we want to show the ENTIRE lineage tree from the original seed
+    // If this is a fork, we need to find the root seed of the entire lineage
+    let seedIdForLineage = seed.id;
+    
+    if (seed.isForked && seed.parentId) {
+      // This is a fork, so we need to find the root seed by traversing up the lineage
+      try {
+        const rootSeedId = await findRootSeed(seed.id);
+        if (rootSeedId) {
+          seedIdForLineage = rootSeedId;
+          console.log('Found root seed for full lineage:', seedIdForLineage);
+        } else {
+          // Fallback to parent ID if we can't find root
+          seedIdForLineage = seed.parentId;
+          console.log('Could not find root seed, using parent ID:', seedIdForLineage);
+        }
+      } catch (error) {
+        console.error('Error finding root seed:', error);
+        seedIdForLineage = seed.parentId;
+      }
+    } else {
+      console.log('This is an original seed, using its own ID:', seedIdForLineage);
+    }
     
     setSelectedSeedId(seedIdForLineage);
     onClose();
     navigate('/forklore/timeline');
+  };
+
+  // Helper function to find the root seed by traversing up the lineage
+  const findRootSeed = async (seedId: string): Promise<string | null> => {
+    const visited = new Set<string>();
+    let currentId = seedId;
+    
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      
+      try {
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        const token = localStorage.getItem("token");
+        
+        // Check if current ID is a seed
+        const seedRes = await fetch(`${apiBase}/api/seeds/${currentId}`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+        });
+        
+        if (seedRes.ok) {
+          const seedData = await seedRes.json();
+          if (seedData && !seedData.deletedAt) {
+            return currentId; // Found the root seed
+          }
+        }
+        
+        // Check if current ID is a fork, get its parent
+        const forkRes = await fetch(`${apiBase}/api/forks/${currentId}`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+        });
+        
+        if (forkRes.ok) {
+          const forkData = await forkRes.json();
+          if (forkData && forkData.fork && forkData.fork.parentSeed) {
+            currentId = forkData.fork.parentSeed._id || forkData.fork.parentSeed;
+          } else {
+            break; // No parent found
+          }
+        } else {
+          break; // Not found
+        }
+      } catch (error) {
+        console.error('Error checking node:', currentId, error);
+        break;
+      }
+    }
+    
+    return null;
   };
 
   const handleAuthorClick = () => {

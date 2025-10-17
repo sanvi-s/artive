@@ -227,7 +227,7 @@ const PublicProfile = () => {
         author: typeof f.author === 'string' ? f.author : (f.author?.displayName || f.author?.username || 'Anonymous'),
         time: formatTime(f.createdAt),
         createdAt: f.createdAt,
-        forks: 0,
+        forks: f.forkCount || 0, // Use the fork's own fork count
         sparks: 0,
         category: 'general',
         tags: [],

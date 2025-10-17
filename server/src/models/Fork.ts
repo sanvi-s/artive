@@ -5,6 +5,10 @@ export interface IFork extends Document {
   author: Types.ObjectId;
   contentDelta?: string;
   summary?: string;
+  description?: string;
+  imageUrl?: string;
+  thumbnailUrl?: string;
+  forkCount: number;
   createdAt: Date;
 }
 
@@ -14,6 +18,10 @@ const ForkSchema = new Schema<IFork>(
     author: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     contentDelta: { type: String, maxlength: 20000 },
     summary: { type: String, maxlength: 400 },
+    description: { type: String, maxlength: 1000 },
+    imageUrl: { type: String },
+    thumbnailUrl: { type: String },
+    forkCount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );

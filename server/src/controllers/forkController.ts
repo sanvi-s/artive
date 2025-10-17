@@ -3,23 +3,92 @@ import mongoose from 'mongoose';
 import { Fork } from '../models/Fork';
 import { Seed } from '../models/Seed';
 
+// Helper function to find the root seed by traversing up the lineage
+async function findRootSeed(id: string): Promise<string | null> {
+  const visited = new Set<string>();
+  let currentId = id;
+  
+  while (currentId && !visited.has(currentId)) {
+    visited.add(currentId);
+    
+    // Check if current ID is a seed
+    const seed = await Seed.findById(currentId).lean();
+    if (seed) {
+      return currentId; // Found the root seed
+    }
+    
+    // Check if current ID is a fork, get its parent
+    const fork = await Fork.findById(currentId).lean();
+    if (fork) {
+      currentId = String(fork.parentSeed);
+    } else {
+      break; // Not found, break the loop
+    }
+  }
+  
+  return null;
+}
+
+// Helper function to calculate total fork count for a seed (including all descendants)
+async function calculateTotalForkCount(seedId: string): Promise<number> {
+  const visited = new Set<string>();
+  let totalCount = 0;
+  
+  async function countForksRecursively(id: string) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    
+    // Count direct forks
+    const directForks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(id) }).lean();
+    totalCount += directForks.length;
+    
+    // Recursively count forks of each direct fork
+    for (const fork of directForks) {
+      await countForksRecursively(String(fork._id));
+    }
+  }
+  
+  await countForksRecursively(seedId);
+  return totalCount;
+}
+
 export async function createFork(req: Request & { userId?: string }, res: Response) {
   if (!req.userId) return res.status(401).json({ error: { message: 'Unauthorized' } });
   const { id } = req.params as { id: string };
-  const { contentDelta, summary } = req.body || {};
+  const { contentDelta, summary, description, imageUrl, thumbnailUrl } = req.body || {};
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
-      await Fork.create([{ parentSeed: id, author: req.userId, contentDelta, summary }], { session });
+      await Fork.create([{ 
+        parentSeed: id, 
+        author: req.userId, 
+        contentDelta, 
+        summary,
+        description,
+        imageUrl,
+        thumbnailUrl
+      }], { session });
       
       // Check if the parent is a seed or a fork
       const seed = await Seed.findById(id).session(session);
       if (seed) {
         // Parent is a seed, increment its forkCount
         await Seed.findByIdAndUpdate(id, { $inc: { forkCount: 1 } }, { session });
+      } else {
+        // Parent is a fork, increment its forkCount
+        await Fork.findByIdAndUpdate(id, { $inc: { forkCount: 1 } }, { session });
       }
-      // If parent is a fork, we don't need to increment anything since forks don't have forkCount
     });
+    
+    // After the transaction, recalculate total fork count for the root seed
+    // Find the root seed by traversing up the lineage
+    const rootSeedId = await findRootSeed(id);
+    if (rootSeedId) {
+      const totalForkCount = await calculateTotalForkCount(rootSeedId);
+      await Seed.findByIdAndUpdate(rootSeedId, { forkCount: totalForkCount });
+      console.log(`🔀 Updated root seed ${rootSeedId} total fork count to ${totalForkCount}`);
+    }
+    
     res.status(201).json({ ok: true });
   } finally {
     await session.endSession();
@@ -41,7 +110,14 @@ export async function getFork(req: Request, res: Response) {
     return res.status(404).json({ error: { message: 'Fork not found' } });
   }
 
-  res.json({ fork });
+  // Get forks of this fork
+  const forks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(id) })
+    .populate('author', 'username displayName avatarUrl')
+    .sort('-createdAt')
+    .limit(10)
+    .lean();
+
+  res.json({ fork, forks });
 }
 
 export async function listForks(req: Request, res: Response) {
@@ -61,7 +137,7 @@ export async function listForks(req: Request, res: Response) {
   const [items, total] = await Promise.all([
     Fork.find(filter)
       .populate('author', 'username displayName avatarUrl')
-      .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull createdAt')
+      .populate('parentSeed', 'title type thumbnailUrl imageUrl contentSnippet contentFull createdAt')
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
@@ -107,7 +183,7 @@ export async function listForksInspiredByUser(req: Request, res: Response) {
   const [items, total] = await Promise.all([
     Fork.find({ parentSeed: { $in: allParentIds } })
       .populate('author', 'username displayName avatarUrl')
-      .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull')
+      .populate('parentSeed', 'title type thumbnailUrl imageUrl contentSnippet contentFull')
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
@@ -129,7 +205,7 @@ export async function listForksByUser(req: Request, res: Response) {
   const [items, total] = await Promise.all([
     Fork.find({ author: id })
       .populate('author', 'username displayName avatarUrl')
-      .populate('parentSeed', 'title type thumbnailUrl contentSnippet contentFull')
+      .populate('parentSeed', 'title type thumbnailUrl imageUrl contentSnippet contentFull')
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
@@ -163,13 +239,32 @@ export async function deleteFork(req: Request & { userId?: string }, res: Respon
       // Delete the fork
       await Fork.findByIdAndDelete(id).session(session);
       
-      // Decrement the fork count on the parent seed
-      await Seed.findByIdAndUpdate(
-        fork.parentSeed, 
-        { $inc: { forkCount: -1 } }, 
-        { session }
-      );
+      // Decrement the fork count on the parent (could be seed or fork)
+      const parentSeed = await Seed.findById(fork.parentSeed).session(session);
+      if (parentSeed) {
+        // Parent is a seed, decrement its forkCount
+        await Seed.findByIdAndUpdate(
+          fork.parentSeed, 
+          { $inc: { forkCount: -1 } }, 
+          { session }
+        );
+      } else {
+        // Parent is a fork, decrement its forkCount
+        await Fork.findByIdAndUpdate(
+          fork.parentSeed, 
+          { $inc: { forkCount: -1 } }, 
+          { session }
+        );
+      }
     });
+    
+    // After the transaction, recalculate total fork count for the root seed
+    const rootSeedId = await findRootSeed(id);
+    if (rootSeedId) {
+      const totalForkCount = await calculateTotalForkCount(rootSeedId);
+      await Seed.findByIdAndUpdate(rootSeedId, { forkCount: totalForkCount });
+      console.log(`🗑️ Updated root seed ${rootSeedId} total fork count to ${totalForkCount} after deletion`);
+    }
     
     res.status(204).send();
   } catch (error: any) {

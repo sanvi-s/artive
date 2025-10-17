@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { InkCursor } from "@/components/InkCursor";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Github, Linkedin } from "lucide-react";
 
 const milestones = [
   {
@@ -118,8 +118,31 @@ const About = () => {
             <h3 className="font-display text-xl font-semibold mb-3 text-foreground">Sanvi Shanishchara</h3>
             <p className="text-accent-1 italic mb-4 font-medium text-base">Developer</p>
             <p className="text-base leading-relaxed text-foreground/90 max-w-4xl mx-auto font-serif">
-              Artive was created by Sanvi, a developer and multidisciplinary creator who has always found beauty in the unfinished. She often describes herself as someone who can never quite finish a poem—someone who collects fragments of thought, paints that pause mid-stroke, and hobbies that drift halfway before transforming into something new. It was from this realization that Artive was born—a space for the jack of all trades, master of none. Through Artive, Sanvi sought to build a platform that embraces incompletion as art in itself, where half-formed ideas can evolve, connect, and find meaning in collaboration.
+              Artive was created by Sanvi, who has always found beauty in the unfinished. She often describes herself as someone who can never quite finish a poem—someone who collects fragments of thought, paints that pause mid-stroke, and hobbies that drift halfway before transforming into something new. It was from this realization that Artive was born—a space for the jack of all trades, master of none. Through Artive, Sanvi sought to build a platform that embraces incompletion as art in itself, where half-formed ideas can evolve, connect, and find meaning in collaboration.
             </p>
+            
+            {/* Social Media Links */}
+            <div className="flex justify-center gap-6 mt-6">
+              <a 
+                href="https://github.com/sanvi-s" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="group flex items-center gap-2 px-4 py-2 rounded-full bg-card/60 backdrop-blur-sm border border-border/20 hover:border-accent-1/40 transition-all duration-300 hover:shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
+              >
+                <Github className="h-5 w-5 text-foreground/80 group-hover:text-accent-1 transition-colors" />
+                <span className="text-sm font-medium text-foreground/80 group-hover:text-accent-1 transition-colors">GitHub</span>
+              </a>
+              
+              <a 
+                href="https://www.linkedin.com/in/sanvi-shanishchara-368297287/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="group flex items-center gap-2 px-4 py-2 rounded-full bg-card/60 backdrop-blur-sm border border-border/20 hover:border-accent-1/40 transition-all duration-300 hover:shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
+              >
+                <Linkedin className="h-5 w-5 text-foreground/80 group-hover:text-accent-1 transition-colors" />
+                <span className="text-sm font-medium text-foreground/80 group-hover:text-accent-1 transition-colors">LinkedIn</span>
+              </a>
+            </div>
           </div>
         </section>
 

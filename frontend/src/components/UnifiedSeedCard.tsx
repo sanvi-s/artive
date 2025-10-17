@@ -18,9 +18,16 @@ export const UnifiedSeedCard = ({
   className, 
   style, 
   onFork, 
-  onView,
-  onDelete
+  onView, 
+  onDelete 
 }: UnifiedSeedCardProps) => {
+  console.log('🎨 UnifiedSeedCard received seed:', seed);
+  console.log('🎨 Seed type:', seed.type);
+  if (seed.type === 'visual') {
+    console.log('🎨 Visual seed content:', (seed as any).content);
+    console.log('🎨 Content type:', typeof (seed as any).content);
+    console.log('🎨 Content length:', (seed as any).content?.length);
+  }
   // Render text seeds with TextCard component
   if (seed.type === 'text') {
     return (
@@ -137,7 +144,7 @@ const VisualSeedCard = ({
               {seed.title}
             </h3>
             <p className="text-white/90 text-sm leading-relaxed line-clamp-3">
-              {seed.description}
+              {(seed as any).content || (seed as VisualSeed).description || ''}
             </p>
           </div>
         </div>
@@ -148,6 +155,14 @@ const VisualSeedCard = ({
         <h3 className="font-display font-semibold text-base leading-tight line-clamp-2 group-hover:opacity-0 transition-opacity duration-300">
           {seed.title}
         </h3>
+        {seed.type === 'visual' && (seed as any).content && (
+          <p className="text-sm text-muted-foreground line-clamp-2 group-hover:opacity-0 transition-opacity duration-300">
+            {(seed as any).content}
+          </p>
+        )}
+        {seed.type === 'visual' && !(seed as any).content && (
+          <p className="text-xs text-red-500">DEBUG: No content found for visual seed</p>
+        )}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span className="font-handwritten">{seed.author}</span>
           <span>{seed.time}</span>

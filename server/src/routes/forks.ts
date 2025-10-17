@@ -8,7 +8,7 @@ const writeLimiter = rateLimit({ windowMs: 60_000, max: 30 });
 
 router.get('/', listForks);
 router.get('/:id', getFork);
-router.post('/', authMiddleware, writeLimiter, createFork);
+router.post('/:id', authMiddleware, writeLimiter, createFork);
 router.delete('/:id', authMiddleware, deleteFork);
 
 export default router;

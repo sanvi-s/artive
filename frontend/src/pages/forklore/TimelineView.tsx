@@ -518,7 +518,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       if (!isAuthenticated || !user) return;
 
       try {
-        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+        const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
         const token = localStorage.getItem("token");
         
         if (!token) return;
@@ -545,28 +545,32 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
     
     setLoading(true);
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
       const token = localStorage.getItem("token");
       
       console.log('Fetching lineage data for ID:', seedId);
       
-      // Try to fetch as a seed first
-      let seedRes = await fetch(`${apiBase}/api/seeds/${seedId}`, {
+      // Try to fetch as seed or fork using the unified endpoint
+      let seedOrForkRes = await fetch(`${apiBase}/api/seeds/${seedId}/details`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
       
       let seedData = null;
+      let forkData = null;
       let isFork = false;
       
-      if (seedRes.ok) {
-        seedData = await seedRes.json();
-        console.log('Found as seed:', seedData);
+      if (seedOrForkRes.ok) {
+        const data = await seedOrForkRes.json();
+        if (data.type === 'seed') {
+          seedData = data;
+          console.log('Found as seed:', seedData);
+        } else if (data.type === 'fork') {
+          forkData = data;
+          isFork = true;
+          console.log('Found as fork:', forkData);
+        }
       } else {
-        // If not found as seed, it might be a fork
-        // For now, we'll try to fetch lineage data directly
-        // since forks don't have individual endpoints
-        console.log('Not found as seed, trying as fork or direct lineage fetch');
-        isFork = true;
+        console.log('Not found as seed or fork');
       }
       
       // Fetch the lineage data
@@ -603,93 +607,12 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   // Build real timeline from lineage data
   const buildRealTimeline = async (lineageData: LineageData, rootSeedId: string) => {
     try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "";
+      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL || "http://localhost:5050";
       const token = localStorage.getItem("token");
       
       console.log('Building timeline with lineage data:', lineageData);
       console.log('Lineage nodes:', lineageData.nodes);
       console.log('Lineage edges:', lineageData.edges);
-      
-      // Fetch details for all nodes including their forks
-      const nodeDetails = await Promise.all(
-        lineageData.nodes.map(async (nodeId) => {
-          console.log('Fetching details for node:', nodeId);
-          
-          // First try to fetch as a seed
-          let res = await fetch(`${apiBase}/api/seeds/${nodeId}`, {
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            console.log('Node details fetched as seed:', data);
-            // The API returns { seed, forks }, so we need both
-            return { seed: data.seed, forks: data.forks || [] };
-          } else {
-            // If not found as seed, try to fetch as a fork
-            console.log('Not found as seed, trying as fork:', nodeId);
-            const forkRes = await fetch(`${apiBase}/api/forks/${nodeId}`, {
-              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-            });
-            
-            if (forkRes.ok) {
-              const forkData = await forkRes.json();
-              console.log('Found as fork:', forkData);
-              const fork = forkData.fork;
-              
-              // Create a mock seed object from the fork data
-              const mockSeed = {
-                _id: fork._id,
-                title: fork.summary || 'Fork',
-                contentFull: fork.contentDelta || fork.summary || '',
-                contentSnippet: fork.summary || '',
-                type: 'text',
-                author: fork.author,
-                createdAt: fork.createdAt,
-                thumbnailUrl: fork.thumbnailUrl || fork.imageUrl,
-                forkCount: 0 // Forks don't have fork counts
-              };
-              return { seed: mockSeed, forks: [] };
-            }
-            
-            console.log('Failed to fetch node details for:', nodeId, res.status);
-            return null;
-          }
-        })
-      );
-
-      // Filter out failed requests and build seeds
-      const validNodeDetails = nodeDetails.filter(Boolean);
-      console.log('Valid node details:', validNodeDetails);
-      console.log('Looking for root seed ID:', rootSeedId);
-      
-      const rootNodeDetail = validNodeDetails.find(nodeDetail => nodeDetail.seed._id === rootSeedId);
-      console.log('Root node detail found:', rootNodeDetail);
-      
-      let localRootSeed = null;
-      if (rootNodeDetail) {
-        const rootSeed = rootNodeDetail.seed;
-        console.log('Setting root seed:', rootSeed);
-        localRootSeed = {
-          id: rootSeed._id,
-          title: rootSeed.title,
-          author: rootSeed.author?.displayName || rootSeed.author?.username || 'Unknown',
-          date: new Date(rootSeed.createdAt).toISOString().split('T')[0],
-          type: rootSeed.type === 'poem' ? 'text' : 'visual',
-          generation: 0,
-          children: [],
-          // Add image and content for hover preview
-          image: rootSeed.thumbnailUrl,
-          content: rootSeed.contentFull || rootSeed.contentSnippet || rootSeed.content || ''
-        } as any;
-        console.log('localRootSeed created:', localRootSeed);
-        setRealCenterSeed(localRootSeed);
-      } else {
-        console.log('No root node detail found for ID:', rootSeedId);
-      }
-
-      // Build other seeds including forks
-      const otherSeeds: Seed[] = [];
       
       // Calculate proper generations for all nodes
       const calculateGeneration = (nodeId: string, visited = new Set<string>()): number => {
@@ -702,71 +625,88 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         // Recursively calculate parent's generation and add 1
         return calculateGeneration(edge.parent, visited) + 1;
       };
+
+      // Build timeline items from all nodes in lineage (no duplicates)
+      const allSeeds: Seed[] = [];
       
-      validNodeDetails.forEach((nodeDetail) => {
-        const seed = nodeDetail.seed;
-        if (seed._id !== rootSeedId) {
-          // Calculate proper generation based on lineage depth
-          const generation = calculateGeneration(seed._id);
-          console.log(`Node ${seed._id} (${seed.title}) has generation ${generation}`);
-          
-          otherSeeds.push({
-            id: seed._id,
-            title: seed.title,
-            author: seed.author?.displayName || seed.author?.username || 'Unknown',
-            date: new Date(seed.createdAt).toISOString().split('T')[0],
-            createdAt: seed.createdAt, // Add full timestamp for proper sorting
-            type: seed.type === 'poem' ? 'text' : 'visual',
-            generation: generation,
-            parentId: lineageData.edges.find(e => e.child === seed._id)?.parent,
-            // Add content for hover preview
-            content: seed.contentFull || seed.contentSnippet || seed.content || '',
-            children: []
-          } as any);
-        }
-
-        // Add forks as separate timeline items
-        nodeDetail.forks.forEach((fork: any) => {
-          const originalContent = seed.contentFull || seed.contentSnippet || seed.content || '';
-          const forkContent = fork.contentDelta || fork.summary || fork.content || '';
-          // For forks, use contentDelta directly as it already contains the full content
-          const combinedContent = fork.contentDelta || fork.summary || fork.content || originalContent;
-          
-          // Calculate proper generation for this fork
-          const forkGeneration = calculateGeneration(fork._id);
-          console.log(`Fork ${fork._id} (${fork.summary || 'Fork'}) has generation ${forkGeneration}`);
-            
-          otherSeeds.push({
-            id: fork._id,
-            title: fork.summary || 'Fork',
-            author: fork.author?.displayName || fork.author?.username || 'Anonymous',
-            date: new Date(fork.createdAt).toISOString().split('T')[0],
-            createdAt: fork.createdAt, // Add full timestamp for proper sorting
-            type: 'text', // Forks are always text seeds since they have content
-            generation: forkGeneration, // Use calculated generation
-            parentId: fork.parentSeed?._id || seed._id,
-            // Add content for hover preview - combined original and fork content
-            content: combinedContent,
-            contentSnippet: combinedContent.slice(0, 200),
-            // Add image for visual forks
-            image: fork.thumbnailUrl || fork.imageUrl,
-            thumbnailUrl: fork.thumbnailUrl || fork.imageUrl,
-            children: []
-          } as any);
+      for (const nodeId of lineageData.nodes) {
+        console.log('Fetching details for timeline node:', nodeId);
+        
+        // Use the unified endpoint to fetch as seed or fork
+        const res = await fetch(`${apiBase}/api/seeds/${nodeId}/details`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
         });
-      });
-
-      // Include the root seed in the realSeeds array if it exists
-      console.log('localRootSeed before creating allRealSeeds:', localRootSeed);
-      const allRealSeeds = localRootSeed ? [localRootSeed, ...otherSeeds] : otherSeeds;
-      console.log('Setting real seeds:', allRealSeeds);
-      console.log('Root seed included:', !!localRootSeed);
-      console.log('Other seeds count:', otherSeeds.length);
-      console.log('allRealSeeds length:', allRealSeeds.length);
-      setRealSeeds(allRealSeeds);
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Timeline node details fetched:', data);
+          
+          let seedData = null;
+          if (data.type === 'seed') {
+            seedData = data.seed;
+          } else if (data.type === 'fork') {
+            // Convert fork to seed format for timeline
+            const fork = data.fork;
+            const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || '';
+            const forkContent = fork.contentDelta || fork.summary || '';
+            const combinedContent = originalContent && forkContent
+              ? `${originalContent}\n${forkContent}`
+              : (forkContent || originalContent);
+            
+            seedData = {
+              _id: fork._id,
+              title: fork.summary || 'Fork',
+              contentFull: combinedContent,
+              contentSnippet: fork.summary || '',
+              content: combinedContent,
+              type: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
+              author: fork.author,
+              createdAt: fork.createdAt,
+              thumbnailUrl: fork.thumbnailUrl || fork.imageUrl,
+              image: fork.imageUrl || fork.thumbnailUrl,
+              forkCount: fork.forkCount || 0
+            };
+          }
+          
+          if (seedData) {
+            // Calculate proper generation based on lineage depth
+            const generation = calculateGeneration(seedData._id);
+            console.log(`Timeline node ${seedData._id} (${seedData.title}) has generation ${generation}`);
+            
+            const timelineSeed = {
+              id: seedData._id,
+              title: seedData.title,
+              author: seedData.author?.displayName || seedData.author?.username || 'Unknown',
+              date: new Date(seedData.createdAt).toISOString().split('T')[0],
+              createdAt: seedData.createdAt,
+              type: seedData.type === 'poem' ? 'text' : 'visual',
+              generation: generation,
+              parentId: lineageData.edges.find(e => e.child === seedData._id)?.parent,
+              content: seedData.contentFull || seedData.contentSnippet || seedData.content || '',
+              contentSnippet: (seedData.contentFull || seedData.contentSnippet || '').slice(0, 200),
+              image: seedData.thumbnailUrl,
+              thumbnailUrl: seedData.thumbnailUrl,
+              forks: seedData.forkCount || 0,
+              children: []
+            } as any;
+            
+            allSeeds.push(timelineSeed);
+            
+            // Set the root seed if this is the root
+            if (seedData._id === rootSeedId) {
+              setRealCenterSeed(timelineSeed);
+            }
+          }
+        } else {
+          console.warn('Failed to fetch timeline node details for:', nodeId, res.status);
+        }
+      }
+      
+      console.log('Built timeline seeds:', allSeeds);
+      setRealSeeds(allSeeds);
       
       // Log the timeline data for debugging
-      const timelineData = allRealSeeds.filter(Boolean).sort((a, b) => 
+      const timelineData = allSeeds.filter(Boolean).sort((a, b) => 
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
       console.log('Timeline data:', timelineData);
