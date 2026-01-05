@@ -9,7 +9,7 @@ import { SeedCreationData } from "@/types/seed";
 import { X, Plus, Type, Image, Music, Code, Quote, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 interface PlantSeedModalProps {
   children: React.ReactNode;
@@ -28,6 +28,7 @@ const categories = ['Poetry', 'Reflections', 'Visual', 'Music', 'Code', 'Random'
 export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<'text' | 'visual' | 'music' | 'code'>('text');
   const [formData, setFormData] = useState<SeedCreationData>({
@@ -47,11 +48,7 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
 
   const handleOpenModal = () => {
     if (!isAuthenticated) {
-      toast({
-        title: "Login Required",
-        description: "Please log in to plant seeds.",
-        variant: "destructive"
-      });
+      navigate("/login");
       return;
     }
     setIsOpen(true);

@@ -6,7 +6,7 @@ import { InkCursor } from "@/components/InkCursor";
 import { PlantSeedModal } from "@/components/PlantSeedModal";
 import { SeedViewModal } from "@/components/SeedViewModal";
 import { ForkModal } from "@/components/ForkModal";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { SeedCreationData, Seed } from "@/types/seed";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +43,7 @@ const shards = [
 const Index = () => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
@@ -110,6 +111,14 @@ const Index = () => {
         });
         
         if (seedsRes.ok) {
+          const contentType = seedsRes.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            const text = await seedsRes.text();
+            console.error('API returned non-JSON response:', text.slice(0, 200));
+            setLoading(false);
+            return;
+          }
+          
           const seedsData = await seedsRes.json();
           const seeds: Seed[] = (seedsData.items || []).map((s: any) => ({
             id: s._id,
@@ -133,6 +142,8 @@ const Index = () => {
           seeds.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           
           setFeaturedSeeds(seeds.slice(0, 12));
+        } else {
+          console.warn('Failed to fetch seeds:', seedsRes.status, seedsRes.statusText);
         }
       } catch (error) {
         console.error('Failed to fetch seeds:', error);
@@ -153,6 +164,10 @@ const Index = () => {
   };
 
   const handleForkSeed = (seedId: string) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     const seed = featuredSeeds.find(s => s.id === seedId);
     if (!seed) return;
     if (seed.type === 'text') {
@@ -286,7 +301,7 @@ const Index = () => {
             <p className="text-base md:text-md leading-relaxed text-muted-foreground">
               Most creative work dies in draft folders. Ideas abandoned mid-sentence.
               Sketches left unfinished. Code that almost worked. We celebrate these
-              fragments—not as failures, but as invitations. Every incomplete thing
+              fragments - not as failures, but as invitations. Every incomplete thing
               here is a spark waiting for the next creative mind to carry it forward.
             </p>
             <p className="font-handwritten text-lg text-accent-foreground italic">
@@ -347,7 +362,7 @@ const Index = () => {
       <footer className="py-12 border-t border-border/50 bg-card/20 backdrop-blur-sm">
         <div className="container mx-auto px-4 md:px-8 text-center space-y-4">
           <p className="text-xs text-muted-foreground">
-            Artive © 2025 · Celebrating imperfection, one fragment at a time
+            Artive © 2026 · Celebrating imperfection, one fragment at a time
           </p>
         </div>
       </footer>

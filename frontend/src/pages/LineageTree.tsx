@@ -282,6 +282,10 @@ const LineageTree = () => {
 
   // Handle fork action
   const handleFork = (seedId: string) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     console.log('Fork seed:', seedId);
     toast({
       title: "Fork Seed",

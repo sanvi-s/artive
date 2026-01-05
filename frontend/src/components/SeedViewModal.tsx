@@ -7,6 +7,7 @@ import { GitFork, Eye, Quote, Image as ImageIcon, X, Calendar, User, Tag, GitBra
 import { useForklore } from "@/contexts/ForkloreContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { ForkModal } from "./ForkModal";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SeedViewModalProps {
   seed: Seed | null;
@@ -21,10 +22,15 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork, onForkCreated }: 
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const navigate = useNavigate();
   const { setSelectedSeedId } = useForklore();
+  const { isAuthenticated } = useAuth();
 
   if (!seed) return null;
 
   const handleFork = () => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     setIsForkModalOpen(true);
     onClose();
   };

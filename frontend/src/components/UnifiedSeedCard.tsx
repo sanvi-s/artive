@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Seed, TextSeed, VisualSeed } from "@/types/seed";
 import { TextCard } from "./TextCard";
 import { GitFork, Eye, Image as ImageIcon, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface UnifiedSeedCardProps {
   seed: Seed;
@@ -76,9 +78,15 @@ const VisualSeedCard = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isLandscape, setIsLandscape] = useState<boolean | null>(null);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   const handleFork = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     onFork?.(seed.id);
   };
 

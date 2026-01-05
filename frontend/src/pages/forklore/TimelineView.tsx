@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Eye, Clock, Download, Layout, Undo2, Redo2, Play, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Navbar } from '@/components/Navbar';
@@ -165,6 +165,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 }) => {
   const { toast } = useToast();
   const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [orientation, setOrientation] = useState<Orientation>('horizontal');
@@ -223,6 +224,10 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   // Handle fork action
   const handleFork = (seedId: string) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     // You can implement fork logic here or redirect to fork page
     console.log('Fork seed:', seedId);
     toast({

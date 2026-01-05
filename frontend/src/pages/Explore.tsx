@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Navbar } from "@/components/Navbar";
@@ -9,18 +9,21 @@ import { UnifiedSeedCard } from "@/components/UnifiedSeedCard";
 import { SeedViewModal } from "@/components/SeedViewModal";
 import { ForkModal } from "@/components/ForkModal";
 import { Seed } from "@/types/seed";
+import { useAuth } from "@/contexts/AuthContext";
 
 const categories = ["Text", "Visual", "Music", "Code"];
 const sortOptions = ["New", "Trending", "Most Forked", "Most Sparked", "Oldest"];
 
 const Explore = () => {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSort, setSelectedSort] = useState("New");
   const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
-  const [forkSeedMeta, setForkSeedMeta] = useState<{ id: string; type: string } | null>(null);
+  const [forkSeedMeta, setForkSeedMeta] = useState<{ id: string; type: string; initialText?: string } | null>(null);
   const [allSeeds, setAllSeeds] = useState<Seed[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -169,10 +172,18 @@ const Explore = () => {
   };
 
   const handleForkSeed = (seedId: string) => {
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     console.log('Forking seed:', seedId);
     const seed = allSeeds.find(s => s.id === seedId);
     if (seed) {
-      setForkSeedMeta({ id: seedId, type: seed.type });
+      if (seed.type === 'text') {
+        setForkSeedMeta({ id: seedId, type: seed.type, initialText: seed.content });
+      } else {
+        setForkSeedMeta({ id: seedId, type: seed.type });
+      }
       setIsForkModalOpen(true);
     }
   };
@@ -297,6 +308,7 @@ const Explore = () => {
         }}
         seedId={forkSeedMeta?.id || null}
         seedType={forkSeedMeta?.type as 'text' | 'visual' | 'music' | 'code' | 'other'}
+        initialText={forkSeedMeta?.initialText}
         onForkCreated={refreshSeedsAndForks}
       />
     </div>

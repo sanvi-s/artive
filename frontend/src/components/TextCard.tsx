@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { TextSeed } from "@/types/seed";
 import { GitFork, Eye, Quote, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface TextCardProps {
   seed: TextSeed;
@@ -22,9 +24,15 @@ export const TextCard = ({
 }: TextCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   const handleFork = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
     onFork?.(seed.id);
   };
 
