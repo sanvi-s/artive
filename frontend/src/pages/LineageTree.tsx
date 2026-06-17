@@ -32,8 +32,21 @@ interface UserSeed {
   createdAt: string;
 }
 
+interface EnrichedNode {
+  id: string;
+  type: 'seed' | 'fork';
+  title: string;
+  author: any;
+  content: string;
+  thumbnailUrl?: string;
+  imageUrl?: string;
+  forkCount: number;
+  createdAt: string;
+  parentId?: string;
+}
+
 interface LineageData {
-  nodes: string[];
+  nodes: EnrichedNode[];
   edges: Array<{ parent: string; child: string }>;
 }
 
@@ -439,9 +452,7 @@ if (!apiBase) {
       if (res.ok) {
         const data = await res.json();
         setLineageData(data);
-        // Use the first node as the root seed ID for positioning
-        const rootSeedId = data.nodes && data.nodes.length > 0 ? data.nodes[0] : seedId;
-        buildRealTree(data, rootSeedId);
+        buildRealTree(data, seedId);
       } else {
         toast({
           title: "Error",
@@ -469,161 +480,31 @@ if (!apiBase) {
     }
   };
 
-  // Build real tree from lineage data
-  const buildRealTree = async (lineageData: LineageData, rootSeedId: string) => {
-    try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
-if (!apiBase) {
-  console.error('❌ VITE_API_URL not configured in environment variables');
-}
-      const token = localStorage.getItem("token");
-      
-      console.log('🌳 Building tree with lineage data:', lineageData);
-      console.log('🌳 Nodes to fetch:', lineageData.nodes);
-      console.log('🌳 Edges from API:', lineageData.edges);
-      
-      // Fetch details for each unique node only once
-      const nodeDetailsMap = new Map();
-      
-      for (const nodeId of lineageData.nodes) {
-        if (nodeDetailsMap.has(nodeId)) continue; // Skip if already fetched
-        
-        console.log('🌳 Fetching details for node:', nodeId);
-        
-        // Add a small delay to prevent rate limiting
-        if (nodeDetailsMap.size > 0) {
-          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
-        }
-        
-        const res = await fetch(`${apiBase}/api/seeds/${nodeId}/details`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          console.log('🌳 Node details fetched:', data);
-          
-          if (data.type === 'seed') {
-            console.log('🌳 Seed data for', nodeId, ':', {
-              id: data.seed._id,
-              title: data.seed.title,
-              type: data.seed.type,
-              forkCount: data.seed.forkCount
-            });
-            
-            nodeDetailsMap.set(nodeId, {
-              id: data.seed._id,
-              title: data.seed.title,
-              author: data.seed.author?.displayName || data.seed.author?.username || 'Unknown',
-              image: data.seed.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${data.seed.author?.displayName?.charAt(0) || 'U'}`,
-              x: 0, // Will be calculated
-              y: 0, // Will be calculated
-              forks: data.seed.forkCount || 0,
-              date: new Date(data.seed.createdAt).toISOString().split('T')[0],
-              type: data.seed._id === rootSeedId ? "original" : "fork",
-              seedType: data.seed.type,
-              content: data.seed.contentFull || data.seed.contentSnippet || ''
-            });
-          } else if (data.type === 'fork') {
-            const fork = data.fork;
-            const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || '';
-            const forkContent = fork.contentDelta || fork.summary || '';
-            const forkDescription = fork.description || '';
-            const combinedContent = forkContent || forkDescription || originalContent;
-            
-            nodeDetailsMap.set(nodeId, {
-              id: fork._id,
-              title: fork.title || fork.summary || 'Fork',
-              author: fork.author?.displayName || fork.author?.username || 'Anonymous',
-              image: fork.imageUrl || fork.thumbnailUrl || fork.parentSeed?.imageUrl || fork.parentSeed?.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${fork.author?.displayName?.charAt(0) || 'F'}`,
-              x: 0, // Will be calculated
-              y: 0, // Will be calculated
-              forks: fork.forkCount || 0,
-              date: new Date(fork.createdAt).toISOString().split('T')[0],
-              type: "fork",
-              seedType: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
-              content: combinedContent,
-              parentId: fork.parentSeed?._id
-            });
-          }
-        } else {
-          if (res.status === 429) {
-            console.warn('🌳 Rate limited, waiting before retry for:', nodeId);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-            // Retry once
-            const retryRes = await fetch(`${apiBase}/api/seeds/${nodeId}/details`, {
-              headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-            });
-            if (retryRes.ok) {
-              const retryData = await retryRes.json();
-              console.log('🌳 Node details fetched on retry:', retryData);
-              // Process the retry data the same way...
-              if (retryData.type === 'seed') {
-                nodeDetailsMap.set(nodeId, {
-                  id: retryData.seed._id,
-                  title: retryData.seed.title,
-                  author: retryData.seed.author?.displayName || retryData.seed.author?.username || 'Unknown',
-                  image: retryData.seed.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${retryData.seed.author?.displayName?.charAt(0) || 'U'}`,
-                  x: 0,
-                  y: 0,
-                  forks: retryData.seed.forkCount || 0,
-                  date: new Date(retryData.seed.createdAt).toISOString().split('T')[0],
-                  type: retryData.seed._id === rootSeedId ? "original" : "fork",
-                  seedType: retryData.seed.type,
-                  content: retryData.seed.contentFull || retryData.seed.contentSnippet || ''
-                });
-              } else if (retryData.type === 'fork') {
-                const fork = retryData.fork;
-                const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || '';
-                const forkContent = fork.contentDelta || fork.summary || '';
-                const forkDescription = fork.description || '';
-                const combinedContent = forkContent || forkDescription || originalContent;
-                
-                nodeDetailsMap.set(nodeId, {
-                  id: fork._id,
-                  title: fork.title || fork.summary || 'Fork',
-                  author: fork.author?.displayName || fork.author?.username || 'Anonymous',
-                  image: fork.imageUrl || fork.thumbnailUrl || fork.parentSeed?.imageUrl || fork.parentSeed?.thumbnailUrl || `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${fork.author?.displayName?.charAt(0) || 'F'}`,
-                  x: 0,
-                  y: 0,
-                  forks: fork.forkCount || 0,
-                  date: new Date(fork.createdAt).toISOString().split('T')[0],
-                  type: "fork",
-                  seedType: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
-                  content: combinedContent,
-                  parentId: fork.parentSeed?._id
-                });
-              }
-            } else {
-              console.warn('🌳 Retry also failed for:', nodeId, retryRes.status);
-            }
-          } else {
-            console.warn('🌳 Failed to fetch node details for:', nodeId, res.status);
-          }
-        }
-      }
+  // Build real tree from enriched lineage data (no additional fetches needed)
+  const buildRealTree = (lineageData: LineageData, rootSeedId: string) => {
+    const allNodes: Node[] = lineageData.nodes.map(n => {
+      const authorObj = typeof n.author === 'object' ? n.author : { displayName: String(n.author || '') };
+      const authorName = authorObj?.displayName || authorObj?.username || 'Unknown';
+      return {
+        id: n.id,
+        title: n.title || 'Untitled',
+        author: authorName,
+        image: n.thumbnailUrl || n.imageUrl ||
+          `https://via.placeholder.com/80x80/E8C9B0/1E1B18?text=${authorName.charAt(0) || 'U'}`,
+        x: 0,
+        y: 0,
+        forks: n.forkCount || 0,
+        date: n.createdAt ? new Date(n.createdAt).toISOString().split('T')[0] : '',
+        type: n.id === rootSeedId ? "original" : "fork",
+        seedType: (n.thumbnailUrl || n.imageUrl) ? 'visual' : 'text',
+        content: n.content || '',
+        parentId: n.parentId,
+      } as Node & { seedType: string; content: string; parentId?: string };
+    });
 
-      // Convert map to array of nodes
-      const allNodes: Node[] = Array.from(nodeDetailsMap.values());
-      console.log('🌳 Built nodes:', allNodes);
-
-      // Use the edges from the lineage API directly (they're already in the correct format)
-      const edges = lineageData.edges.map(edge => ({
-        from: edge.parent,
-        to: edge.child
-      }));
-      console.log('🌳 Using edges from API:', edges);
-
-      // Calculate positions using tree layout algorithm
-      console.log('🌳 About to calculate positions for root:', rootSeedId);
-      console.log('🌳 Nodes to position:', allNodes.length);
-      console.log('🌳 Edges to use:', edges.length);
-      const positionedNodes = calculateTreePositions(allNodes, edges, rootSeedId);
-      console.log('🌳 Final positioned nodes:', positionedNodes.length);
-      setRealNodes(positionedNodes);
-    } catch (error) {
-      console.error('Failed to build real tree:', error);
-    }
+    const edges = lineageData.edges.map(e => ({ from: e.parent, to: e.child }));
+    const positionedNodes = calculateTreePositions(allNodes, edges, rootSeedId);
+    setRealNodes(positionedNodes);
   };
 
   // Calculate tree positions

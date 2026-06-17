@@ -57,55 +57,45 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
   if (!req.userId) return res.status(401).json({ error: { message: 'Unauthorized' } });
   const { id } = req.params as { id: string };
   const { contentDelta, summary, description, imageUrl, thumbnailUrl } = req.body || {};
-  
-  // Production debugging for fork creation
-  console.log('🔀 Creating fork for seed:', id);
-  console.log('🔀 User ID:', req.userId);
-  console.log('🔀 Fork data:', { contentDelta, summary, description, imageUrl, thumbnailUrl });
+
+  let newForkId: any = null;
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
-      await Fork.create([{ 
-        parentSeed: id, 
-        author: req.userId, 
-        contentDelta, 
+      const [created] = await Fork.create([{
+        parentSeed: id,
+        author: req.userId,
+        contentDelta,
         summary,
         description,
         imageUrl,
         thumbnailUrl
       }], { session });
-      
-      // Check if the parent is a seed or a fork
+      newForkId = created._id;
+
       const seed = await Seed.findById(id).session(session);
       if (seed) {
-        // Parent is a seed, increment its forkCount
         await Seed.findByIdAndUpdate(id, { $inc: { forkCount: 1 } }, { session });
       } else {
-        // Parent is a fork, increment its forkCount
         await Fork.findByIdAndUpdate(id, { $inc: { forkCount: 1 } }, { session });
       }
     });
-    
-    // After the transaction, recalculate total fork count and update Lineage table
+
     const rootSeedId = await findRootSeed(id);
     if (rootSeedId) {
       const totalForkCount = await calculateTotalForkCount(rootSeedId);
       await Seed.findByIdAndUpdate(rootSeedId, { forkCount: totalForkCount });
-      console.log(`🔀 Updated root seed ${rootSeedId} total fork count to ${totalForkCount}`);
 
-      // Record this fork relationship in the Lineage collection
-      const newFork = await Fork.findOne({ parentSeed: id }).sort('-createdAt').lean();
-      if (newFork) {
+      if (newForkId) {
         await Lineage.findOneAndUpdate(
           { seedId: new mongoose.Types.ObjectId(rootSeedId) },
-          { $addToSet: { children: newFork._id } },
+          { $addToSet: { children: newForkId } },
           { upsert: true, new: true }
         );
-        console.log(`🌳 Updated Lineage table for root seed ${rootSeedId}`);
+        console.log(`🌳 Lineage updated for root ${rootSeedId}: added fork ${newForkId}`);
       }
     }
 
-    console.log('🔀 Fork created successfully for seed:', id);
     res.status(201).json({ ok: true });
   } catch (error: any) {
     console.error('❌ Error creating fork:', error);
@@ -238,59 +228,39 @@ export async function listForksByUser(req: Request, res: Response) {
 
 export async function deleteFork(req: Request & { userId?: string }, res: Response) {
   if (!req.userId) return res.status(401).json({ error: { message: 'Unauthorized' } });
-  
+
   const { id } = req.params as { id: string };
   if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: { message: 'Invalid fork id' } });
+
+  // Get rootSeedId BEFORE deleting — findRootSeed won't work after the fork is gone
+  const rootSeedId = await findRootSeed(id);
 
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
-      // Find the fork and verify ownership
       const fork = await Fork.findById(id).session(session);
-      if (!fork) {
-        throw new Error('Fork not found');
-      }
-      
-      // Check if user is the author of the fork
-      if (fork.author.toString() !== req.userId) {
-        throw new Error('Unauthorized to delete this fork');
-      }
+      if (!fork) throw new Error('Fork not found');
+      if (fork.author.toString() !== req.userId) throw new Error('Unauthorized to delete this fork');
 
-      // Delete the fork
       await Fork.findByIdAndDelete(id).session(session);
-      
-      // Decrement the fork count on the parent (could be seed or fork)
+
       const parentSeed = await Seed.findById(fork.parentSeed).session(session);
       if (parentSeed) {
-        // Parent is a seed, decrement its forkCount
-        await Seed.findByIdAndUpdate(
-          fork.parentSeed, 
-          { $inc: { forkCount: -1 } }, 
-          { session }
-        );
+        await Seed.findByIdAndUpdate(fork.parentSeed, { $inc: { forkCount: -1 } }, { session });
       } else {
-        // Parent is a fork, decrement its forkCount
-        await Fork.findByIdAndUpdate(
-          fork.parentSeed, 
-          { $inc: { forkCount: -1 } }, 
-          { session }
-        );
+        await Fork.findByIdAndUpdate(fork.parentSeed, { $inc: { forkCount: -1 } }, { session });
       }
     });
-    
-    // After the transaction, recalculate total fork count and update Lineage table
-    const rootSeedId = await findRootSeed(id);
+
     if (rootSeedId) {
       const totalForkCount = await calculateTotalForkCount(rootSeedId);
       await Seed.findByIdAndUpdate(rootSeedId, { forkCount: totalForkCount });
-      console.log(`🗑️ Updated root seed ${rootSeedId} total fork count to ${totalForkCount} after deletion`);
 
-      // Remove this fork from the Lineage collection
       await Lineage.findOneAndUpdate(
         { seedId: new mongoose.Types.ObjectId(rootSeedId) },
         { $pull: { children: new mongoose.Types.ObjectId(id) } }
       );
-      console.log(`🌳 Removed fork ${id} from Lineage table for root seed ${rootSeedId}`);
+      console.log(`🌳 Lineage updated for root ${rootSeedId}: removed fork ${id}`);
     }
 
     res.status(204).send();

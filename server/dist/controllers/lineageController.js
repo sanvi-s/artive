@@ -13,9 +13,7 @@ async function getLineage(req, res) {
     const { id } = req.params;
     const depth = Math.min(5, Math.max(1, Number(req.query.depth || 3)));
     try {
-        console.log(`🌳 Fetching lineage for ID: ${id}, depth: ${depth}`);
         const result = await getLineageInternal(id, depth);
-        console.log(`🌳 Lineage result:`, result);
         res.json(result);
     }
     catch (error) {
@@ -31,57 +29,67 @@ async function exportLineage(req, res) {
 async function getLineageInternal(id, depth) {
     try {
         const rootSeedId = await findRootSeed(id);
-        if (!rootSeedId) {
-            console.log(`🌳 No root seed found for ${id}, using fallback BFS`);
+        if (!rootSeedId)
             return getLineageFromNode(id, depth);
-        }
-        // Fast path: Lineage table stores all descendant IDs for the root seed.
-        // One lookup + one batch Fork query replaces depth*frontier DB queries.
+        // Fast path: Lineage cache gives us all descendant IDs in one query.
+        // Then two parallel queries (Seed + Fork) enrich everything — zero per-node fetches.
         const cachedLineage = await Lineage_1.Lineage.findOne({ seedId: new mongoose_1.default.Types.ObjectId(rootSeedId) }, { children: 1 }).lean();
         if (cachedLineage && cachedLineage.children.length > 0) {
-            console.log(`🌳 Fast path: Lineage cache hit — ${cachedLineage.children.length} descendants`);
-            // Single batch query: fetch parentSeed for every known descendant
-            const forks = await Fork_1.Fork.find({ _id: { $in: cachedLineage.children } }, { _id: 1, parentSeed: 1 }).lean();
-            const nodes = [rootSeedId];
+            const [rootSeed, forks] = await Promise.all([
+                Seed_1.Seed.findById(rootSeedId, { title: 1, contentSnippet: 1, contentFull: 1, type: 1, author: 1, forkCount: 1, thumbnailUrl: 1, createdAt: 1 })
+                    .populate('author', 'username displayName avatarUrl')
+                    .lean(),
+                Fork_1.Fork.find({ _id: { $in: cachedLineage.children } }, { _id: 1, parentSeed: 1, summary: 1, contentDelta: 1, description: 1, author: 1, forkCount: 1, thumbnailUrl: 1, imageUrl: 1, createdAt: 1 })
+                    .populate('author', 'username displayName avatarUrl')
+                    .lean(),
+            ]);
+            if (!rootSeed)
+                return getLineageFromNode(id, depth);
+            const nodes = [buildSeedNode(rootSeed)];
             const edges = [];
-            const seen = new Set([rootSeedId]);
             for (const fork of forks) {
-                const child = String(fork._id);
-                const parent = String(fork.parentSeed);
-                if (!seen.has(child)) {
-                    seen.add(child);
-                    nodes.push(child);
-                }
-                edges.push({ parent, child });
+                const parentId = String(fork.parentSeed);
+                nodes.push(buildForkNode(fork, parentId));
+                edges.push({ parent: parentId, child: String(fork._id) });
             }
-            console.log(`🌳 Fast path complete: ${nodes.length} nodes, ${edges.length} edges`);
             return { nodes, edges };
         }
-        // Slow path: BFS through Fork collection level by level
-        console.log(`🌳 Slow path: BFS from root seed ${rootSeedId}`);
+        // Slow path: BFS to discover all fork IDs, then enrich in two parallel queries
         const visited = new Set([rootSeedId]);
-        const nodes = [rootSeedId];
+        const forkIds = [];
         const edges = [];
         let frontier = [rootSeedId];
         for (let d = 0; d < depth; d++) {
+            const rawForks = await Fork_1.Fork.find({ parentSeed: { $in: frontier.map(f => new mongoose_1.default.Types.ObjectId(f)) } }, { _id: 1, parentSeed: 1 }).limit(200).lean();
             const next = [];
-            for (const parentId of frontier) {
-                const forks = await Fork_1.Fork.find({ parentSeed: new mongoose_1.default.Types.ObjectId(parentId) }, { _id: 1 }).limit(200).lean();
-                for (const f of forks) {
-                    const child = String(f._id);
-                    edges.push({ parent: parentId, child });
-                    if (!visited.has(child)) { // cycle guard
-                        visited.add(child);
-                        nodes.push(child);
-                        next.push(child);
-                    }
+            for (const f of rawForks) {
+                const child = String(f._id);
+                const parent = String(f.parentSeed);
+                edges.push({ parent, child });
+                if (!visited.has(child)) {
+                    visited.add(child);
+                    forkIds.push(child);
+                    next.push(child);
                 }
             }
             frontier = next;
             if (frontier.length === 0)
-                break; // nothing left to expand
+                break;
         }
-        console.log(`🌳 Slow path complete: ${nodes.length} nodes, ${edges.length} edges`);
+        const [rootSeed, forks] = await Promise.all([
+            Seed_1.Seed.findById(rootSeedId, { title: 1, contentSnippet: 1, contentFull: 1, type: 1, author: 1, forkCount: 1, thumbnailUrl: 1, createdAt: 1 })
+                .populate('author', 'username displayName avatarUrl')
+                .lean(),
+            Fork_1.Fork.find({ _id: { $in: forkIds } }, { _id: 1, parentSeed: 1, summary: 1, contentDelta: 1, description: 1, author: 1, forkCount: 1, thumbnailUrl: 1, imageUrl: 1, createdAt: 1 })
+                .populate('author', 'username displayName avatarUrl')
+                .lean(),
+        ]);
+        if (!rootSeed)
+            return getLineageFromNode(id, depth);
+        const nodes = [buildSeedNode(rootSeed)];
+        for (const fork of forks) {
+            nodes.push(buildForkNode(fork, String(fork.parentSeed)));
+        }
         return { nodes, edges };
     }
     catch (error) {
@@ -89,58 +97,90 @@ async function getLineageInternal(id, depth) {
         return getLineageFromNode(id, depth);
     }
 }
-// Original logic for when we can't find a root seed
+// Fallback: when we can't find a root seed, BFS from the given node
 async function getLineageFromNode(id, depth) {
     const visited = new Set([id]);
-    const nodes = [id];
+    const forkIds = [];
     const edges = [];
     let frontier = [id];
     for (let d = 0; d < depth; d++) {
+        const rawForks = await Fork_1.Fork.find({ parentSeed: { $in: frontier.map(f => new mongoose_1.default.Types.ObjectId(f)) } }, { _id: 1, parentSeed: 1 }).limit(200).lean();
         const next = [];
-        for (const parentId of frontier) {
-            // Look for forks where parentSeed equals the current ID (works for both seeds and forks)
-            const forks = await Fork_1.Fork.find({ parentSeed: new mongoose_1.default.Types.ObjectId(parentId) }, { _id: 1 }).limit(200).lean();
-            for (const f of forks) {
-                const child = String(f._id);
-                edges.push({ parent: parentId, child });
-                if (!visited.has(child)) {
-                    visited.add(child);
-                    nodes.push(child);
-                    next.push(child);
-                }
+        for (const f of rawForks) {
+            const child = String(f._id);
+            const parent = String(f.parentSeed);
+            edges.push({ parent, child });
+            if (!visited.has(child)) {
+                visited.add(child);
+                forkIds.push(child);
+                next.push(child);
             }
         }
         frontier = next;
+        if (frontier.length === 0)
+            break;
+    }
+    const [seedResult, allForks] = await Promise.all([
+        Seed_1.Seed.findById(id, { title: 1, contentSnippet: 1, contentFull: 1, type: 1, author: 1, forkCount: 1, thumbnailUrl: 1, createdAt: 1 })
+            .populate('author', 'username displayName avatarUrl')
+            .lean(),
+        Fork_1.Fork.find({ _id: { $in: [id, ...forkIds] } }, { _id: 1, parentSeed: 1, summary: 1, contentDelta: 1, description: 1, author: 1, forkCount: 1, thumbnailUrl: 1, imageUrl: 1, createdAt: 1 })
+            .populate('author', 'username displayName avatarUrl')
+            .lean(),
+    ]);
+    const nodes = [];
+    if (seedResult)
+        nodes.push(buildSeedNode(seedResult));
+    for (const fork of allForks) {
+        if (String(fork._id) === id && seedResult)
+            continue;
+        nodes.push(buildForkNode(fork, String(fork.parentSeed)));
     }
     return { nodes, edges };
 }
-// Helper function to find the root seed by traversing up the lineage
+function buildSeedNode(seed) {
+    return {
+        id: String(seed._id),
+        type: 'seed',
+        title: seed.title || 'Untitled',
+        author: seed.author,
+        content: seed.contentFull || seed.contentSnippet || '',
+        thumbnailUrl: seed.thumbnailUrl,
+        forkCount: seed.forkCount || 0,
+        createdAt: seed.createdAt instanceof Date ? seed.createdAt.toISOString() : String(seed.createdAt),
+    };
+}
+function buildForkNode(fork, parentId) {
+    return {
+        id: String(fork._id),
+        type: 'fork',
+        title: fork.summary || 'Fork',
+        author: fork.author,
+        content: fork.contentDelta || fork.summary || fork.description || '',
+        thumbnailUrl: fork.thumbnailUrl,
+        imageUrl: fork.imageUrl,
+        forkCount: fork.forkCount || 0,
+        createdAt: fork.createdAt instanceof Date ? fork.createdAt.toISOString() : String(fork.createdAt),
+        parentId,
+    };
+}
 async function findRootSeed(id) {
     try {
-        console.log(`🔍 Finding root seed for ID: ${id}`);
         const visited = new Set();
         let currentId = id;
         while (currentId && !visited.has(currentId)) {
             visited.add(currentId);
-            console.log(`🔍 Checking node: ${currentId}`);
-            // Check if current ID is a seed
             const seed = await Seed_1.Seed.findById(currentId).lean();
-            if (seed) {
-                console.log(`✅ Found root seed: ${currentId}`);
-                return currentId; // Found the root seed
-            }
-            // Check if current ID is a fork, get its parent
+            if (seed)
+                return currentId;
             const fork = await Fork_1.Fork.findById(currentId).lean();
             if (fork) {
-                console.log(`🔀 Found fork, parent: ${fork.parentSeed}`);
                 currentId = String(fork.parentSeed);
             }
             else {
-                console.log(`❌ Node not found: ${currentId}`);
-                break; // Not found, break the loop
+                break;
             }
         }
-        console.log(`❌ No root seed found for ${id}`);
         return null;
     }
     catch (error) {

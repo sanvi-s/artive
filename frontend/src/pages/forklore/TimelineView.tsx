@@ -37,8 +37,21 @@ interface UserSeed {
   createdAt: string;
 }
 
+interface EnrichedNode {
+  id: string;
+  type: 'seed' | 'fork';
+  title: string;
+  author: any;
+  content: string;
+  thumbnailUrl?: string;
+  imageUrl?: string;
+  forkCount: number;
+  createdAt: string;
+  parentId?: string;
+}
+
 interface LineageData {
-  nodes: string[];
+  nodes: EnrichedNode[];
   edges: Array<{ parent: string; child: string }>;
 }
 
@@ -561,183 +574,68 @@ if (!apiBase) {
   // Fetch lineage data when seed is selected
   const fetchLineageData = async (seedId: string) => {
     if (!seedId) return;
-    
     setLoading(true);
     try {
       const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
-if (!apiBase) {
-  console.error('❌ VITE_API_URL not configured in environment variables');
-}
       const token = localStorage.getItem("token");
-      
-      console.log('Fetching lineage data for ID:', seedId);
-      
-      // Try to fetch as seed or fork using the unified endpoint
-      let seedOrForkRes = await fetch(`${apiBase}/api/seeds/${seedId}/details`, {
+
+      const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=5`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
-      
-      let seedData = null;
-      let forkData = null;
-      let isFork = false;
-      
-      if (seedOrForkRes.ok) {
-        const data = await seedOrForkRes.json();
-        if (data.type === 'seed') {
-          seedData = data;
-          console.log('Found as seed:', seedData);
-        } else if (data.type === 'fork') {
-          forkData = data;
-          isFork = true;
-          console.log('Found as fork:', forkData);
-        }
-      } else {
-        console.log('Not found as seed or fork');
-      }
-      
-      // Fetch the lineage data
-      const res = await fetch(`${apiBase}/api/lineage/${seedId}?depth=3`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-      });
-      
+
       if (res.ok) {
-        const data = await res.json();
-        console.log('Lineage data received:', data);
+        const data: LineageData = await res.json();
         setLineageData(data);
         buildRealTimeline(data, seedId);
       } else {
-        const errorText = await res.text();
-        console.error('Lineage fetch failed:', res.status, errorText);
-        toast({
-          title: "Error",
-          description: `Failed to fetch lineage data: ${res.status === 404 ? 'Seed/Fork not found' : 'Access denied'}`,
-          variant: "destructive"
-        });
+        toast({ title: "Error", description: "Failed to fetch lineage data", variant: "destructive" });
       }
     } catch (error) {
       console.error('Failed to fetch lineage data:', error);
-      toast({
-        title: "Error", 
-        description: "Failed to fetch lineage data",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to fetch lineage data", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  // Build real timeline from lineage data
-  const buildRealTimeline = async (lineageData: LineageData, rootSeedId: string) => {
-    try {
-      const apiBase = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.NEXT_PUBLIC_API_URL;
-if (!apiBase) {
-  console.error('❌ VITE_API_URL not configured in environment variables');
-}
-      const token = localStorage.getItem("token");
-      
-      console.log('Building timeline with lineage data:', lineageData);
-      console.log('Lineage nodes:', lineageData.nodes);
-      console.log('Lineage edges:', lineageData.edges);
-      
-      // Calculate proper generations for all nodes
-      const calculateGeneration = (nodeId: string, visited = new Set<string>()): number => {
-        if (visited.has(nodeId)) return 0; // Prevent infinite loops
-        visited.add(nodeId);
-        
-        const edge = lineageData.edges.find(e => e.child === nodeId);
-        if (!edge) return 0; // Root node
-        
-        // Recursively calculate parent's generation and add 1
-        return calculateGeneration(edge.parent, visited) + 1;
-      };
+  // Build real timeline from enriched lineage data (no additional fetches needed)
+  const buildRealTimeline = (lineageData: LineageData, rootSeedId: string) => {
+    const calculateGeneration = (nodeId: string, visited = new Set<string>()): number => {
+      if (visited.has(nodeId)) return 0;
+      visited.add(nodeId);
+      const edge = lineageData.edges.find(e => e.child === nodeId);
+      if (!edge) return 0;
+      return calculateGeneration(edge.parent, visited) + 1;
+    };
 
-      // Build timeline items from all nodes in lineage (no duplicates)
-      const allSeeds: Seed[] = [];
-      
-      for (const nodeId of lineageData.nodes) {
-        console.log('Fetching details for timeline node:', nodeId);
-        
-        // Use the unified endpoint to fetch as seed or fork
-        const res = await fetch(`${apiBase}/api/seeds/${nodeId}/details`, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          console.log('Timeline node details fetched:', data);
-          
-          let seedData = null;
-          if (data.type === 'seed') {
-            seedData = data.seed;
-          } else if (data.type === 'fork') {
-            // Convert fork to seed format for timeline
-            const fork = data.fork;
-            const originalContent = fork.parentSeed?.contentFull || fork.parentSeed?.contentSnippet || '';
-            const forkContent = fork.contentDelta || fork.summary || '';
-            const combinedContent = originalContent && forkContent
-              ? `${originalContent}\n${forkContent}`
-              : (forkContent || originalContent);
-            
-            seedData = {
-              _id: fork._id,
-              title: fork.summary || 'Fork',
-              contentFull: combinedContent,
-              contentSnippet: fork.summary || '',
-              content: combinedContent,
-              type: (fork.imageUrl || fork.thumbnailUrl) ? 'visual' : 'text',
-              author: fork.author,
-              createdAt: fork.createdAt,
-              thumbnailUrl: fork.thumbnailUrl || fork.imageUrl,
-              image: fork.imageUrl || fork.thumbnailUrl,
-              forkCount: fork.forkCount || 0
-            };
-          }
-          
-          if (seedData) {
-            // Calculate proper generation based on lineage depth
-            const generation = calculateGeneration(seedData._id);
-            console.log(`Timeline node ${seedData._id} (${seedData.title}) has generation ${generation}`);
-            
-            const timelineSeed = {
-              id: seedData._id,
-              title: seedData.title,
-              author: seedData.author?.displayName || seedData.author?.username || 'Unknown',
-              date: new Date(seedData.createdAt).toISOString().split('T')[0],
-              createdAt: seedData.createdAt,
-              type: seedData.type === 'visual' ? 'visual' : 'text',
-              generation: generation,
-              parentId: lineageData.edges.find(e => e.child === seedData._id)?.parent,
-              content: seedData.contentFull || seedData.contentSnippet || seedData.content || '',
-              contentSnippet: (seedData.contentFull || seedData.contentSnippet || '').slice(0, 200),
-              image: seedData.thumbnailUrl,
-              thumbnailUrl: seedData.thumbnailUrl,
-              forks: seedData.forkCount || 0,
-              children: []
-            } as any;
-            
-            allSeeds.push(timelineSeed);
-            
-            // Set the root seed if this is the root
-            if (seedData._id === rootSeedId) {
-              setRealCenterSeed(timelineSeed);
-            }
-          }
-        } else {
-          console.warn('Failed to fetch timeline node details for:', nodeId, res.status);
-        }
-      }
-      
-      console.log('Built timeline seeds:', allSeeds);
-      setRealSeeds(allSeeds);
-      
-      // Log the timeline data for debugging
-      const timelineData = allSeeds.filter(Boolean).sort((a, b) => 
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-      console.log('Timeline data:', timelineData);
-    } catch (error) {
-      console.error('Failed to build real timeline:', error);
+    const allSeeds: Seed[] = [];
+
+    for (const n of lineageData.nodes) {
+      const authorObj = typeof n.author === 'object' ? n.author : { displayName: String(n.author || '') };
+      const authorName = authorObj?.displayName || authorObj?.username || 'Unknown';
+      const generation = calculateGeneration(n.id);
+
+      const timelineSeed = {
+        id: n.id,
+        title: n.title || 'Untitled',
+        author: authorName,
+        date: n.createdAt ? new Date(n.createdAt).toISOString().split('T')[0] : '',
+        createdAt: n.createdAt,
+        type: (n.thumbnailUrl || n.imageUrl) ? 'visual' as const : 'text' as const,
+        generation,
+        parentId: n.parentId,
+        content: n.content || '',
+        image: n.thumbnailUrl || n.imageUrl,
+        thumbnailUrl: n.thumbnailUrl,
+        forks: n.forkCount || 0,
+        children: [],
+      } as any;
+
+      allSeeds.push(timelineSeed);
+      if (n.id === rootSeedId) setRealCenterSeed(timelineSeed);
     }
+
+    setRealSeeds(allSeeds);
   };
 
   // Auto-load lineage data when selectedSeedId changes
