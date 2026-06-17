@@ -55,7 +55,7 @@ export const TextCard = ({
   return (
         <div
           className={cn(
-            "relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent backdrop-blur-paper border border-amber-300/40 dark:border-border/20 transition-all duration-hover ease-organic hover:scale-[1.02] hover:-translate-y-1 animate-organic-fade-in hover:border-accent-1/30 h-fit min-h-[200px] max-h-[300px] torn_container torn_left torn_right",
+            "relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent backdrop-blur-paper border border-amber-300/40 dark:border-border/20 transition-all duration-hover ease-organic hover:scale-[1.02] hover:-translate-y-1 animate-organic-fade-in hover:border-accent-1/30 h-fit max-h-[300px] torn_container torn_left torn_right",
             className
           )}
       onMouseEnter={() => setIsHovered(true)}
@@ -177,11 +177,10 @@ export const TextCard = ({
       {/* Hover actions */}
       <div
         className={cn(
-          "absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-background via-background to-transparent backdrop-blur-sm",
-          "transform translate-y-full transition-transform duration-reveal ease-organic",
-          "group-hover:translate-y-0 border-t border-border/20"
+          "absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-amber-200/95 via-amber-100/80 to-transparent",
+          "opacity-0 pointer-events-none transition-opacity duration-reveal ease-organic",
+          "group-hover:opacity-100 group-hover:pointer-events-auto"
         )}
-        style={{ paddingBottom: '10px' }}
       >
         <div className="flex items-center gap-2 text-xs">
           <button 

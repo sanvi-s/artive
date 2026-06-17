@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Fork } from '../models/Fork';
 import { Seed } from '../models/Seed';
+import { Lineage } from '../models/Lineage';
 
 // Helper function to find the root seed by traversing up the lineage
 async function findRootSeed(id: string): Promise<string | null> {
@@ -85,15 +86,25 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
       }
     });
     
-    // After the transaction, recalculate total fork count for the root seed
-    // Find the root seed by traversing up the lineage
+    // After the transaction, recalculate total fork count and update Lineage table
     const rootSeedId = await findRootSeed(id);
     if (rootSeedId) {
       const totalForkCount = await calculateTotalForkCount(rootSeedId);
       await Seed.findByIdAndUpdate(rootSeedId, { forkCount: totalForkCount });
       console.log(`🔀 Updated root seed ${rootSeedId} total fork count to ${totalForkCount}`);
+
+      // Record this fork relationship in the Lineage collection
+      const newFork = await Fork.findOne({ parentSeed: id }).sort('-createdAt').lean();
+      if (newFork) {
+        await Lineage.findOneAndUpdate(
+          { seedId: new mongoose.Types.ObjectId(rootSeedId) },
+          { $addToSet: { children: newFork._id } },
+          { upsert: true, new: true }
+        );
+        console.log(`🌳 Updated Lineage table for root seed ${rootSeedId}`);
+      }
     }
-    
+
     console.log('🔀 Fork created successfully for seed:', id);
     res.status(201).json({ ok: true });
   } catch (error: any) {
@@ -267,14 +278,21 @@ export async function deleteFork(req: Request & { userId?: string }, res: Respon
       }
     });
     
-    // After the transaction, recalculate total fork count for the root seed
+    // After the transaction, recalculate total fork count and update Lineage table
     const rootSeedId = await findRootSeed(id);
     if (rootSeedId) {
       const totalForkCount = await calculateTotalForkCount(rootSeedId);
       await Seed.findByIdAndUpdate(rootSeedId, { forkCount: totalForkCount });
       console.log(`🗑️ Updated root seed ${rootSeedId} total fork count to ${totalForkCount} after deletion`);
+
+      // Remove this fork from the Lineage collection
+      await Lineage.findOneAndUpdate(
+        { seedId: new mongoose.Types.ObjectId(rootSeedId) },
+        { $pull: { children: new mongoose.Types.ObjectId(id) } }
+      );
+      console.log(`🌳 Removed fork ${id} from Lineage table for root seed ${rootSeedId}`);
     }
-    
+
     res.status(204).send();
   } catch (error: any) {
     console.error('Error deleting fork:', error);

@@ -704,7 +704,7 @@ if (!apiBase) {
               author: seedData.author?.displayName || seedData.author?.username || 'Unknown',
               date: new Date(seedData.createdAt).toISOString().split('T')[0],
               createdAt: seedData.createdAt,
-              type: seedData.type === 'poem' ? 'text' : 'visual',
+              type: seedData.type === 'visual' ? 'visual' : 'text',
               generation: generation,
               parentId: lineageData.edges.find(e => e.child === seedData._id)?.parent,
               content: seedData.contentFull || seedData.contentSnippet || seedData.content || '',
@@ -1146,7 +1146,7 @@ if (!apiBase) {
             <Button
               variant={mode === "demo" ? "hero" : "ghost"}
               size="sm"
-              onClick={() => setMode("demo")}
+              onClick={() => { setMode("demo"); setSelectedSeedId(null); }}
               className="text-xs flex items-center gap-1"
               style={mode === "demo" ? {
                 background: 'linear-gradient(90deg, #7dd87a, #52ca51)',

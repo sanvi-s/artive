@@ -172,16 +172,12 @@ All colors MUST be HSL.
     --torn-right-clip-path:polygon(82% 0%, 23% 2%, 78% 3%, 3% 5%, 64% 6%, 80% 8%, 91% 9%, 85% 11%, 14% 12%, 48% 14%, 18% 15%, 95% 17%, 28% 18%, 5% 20%, 36% 22%, 24% 23%, 49% 25%, 6% 26%, 10% 28%, 75% 29%, 71% 31%, 86% 32%, 85% 34%, 90% 35%, 93% 37%, 1% 38%, 32% 40%, 84% 42%, 86% 43%, 61% 45%, 45% 46%, 60% 48%, 62% 49%, 73% 51%, 77% 52%, 7% 54%, 24% 55%, 48% 57%, 35% 58%, 59% 60%, 65% 62%, 11% 63%, 32% 65%, 51% 66%, 95% 68%, 73% 69%, 97% 71%, 69% 72%, 82% 74%, 46% 75%, 40% 77%, 34% 78%, 46% 80%, 29% 82%, 65% 83%, 75% 85%, 14% 86%, 36% 88%, 1% 89%, 20% 91%, 25% 92%, 28% 94%, 50% 95%, 7% 97%, 50% 98%, 42% 100%, -10% 100%, -10% 0%);
   }
   .torn_container{
-    float:left;
     clear:none;
-    margin-bottom:2em;
-    margin-right:1.5em;
     position:relative;
   }
-  
+
   .torn_container.text-card{
-    margin-bottom:6em;
-    margin-right:3.5em;
+    /* kept for compatibility */
   }
   .torn_container>div:first-child{
     margin-left:var(--torn-shadow-offset-x);
@@ -189,7 +185,7 @@ All colors MUST be HSL.
     left:0px;
     top:0px;
     right:calc(0px - var(--torn-shadow-offset-x));
-    bottom:calc(0px - var(--torn-shadow-offset-y));
+    bottom:0px;
     position:absolute;
     z-index:1;
     filter:blur(var(--torn-shadow-blur));
@@ -209,10 +205,11 @@ All colors MUST be HSL.
     background: linear-gradient(to bottom right, #451a03, #78350f);
   }
   .torn_container>div:nth-child(2), .torn_container>div:nth-child(2){
-    display:inline-block;
+    display:block;
+    width:100%;
+    box-sizing:border-box;
     position:relative;
     z-index:2;
-    padding:0.4em;
   }
   .torn_left>div:nth-child(2):before, .torn_left>div:first-child:before{
     content:'';

@@ -189,9 +189,9 @@ const VisualSeedCard = ({
       {/* Hover actions */}
       <div
         className={cn(
-          "absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-background via-background/95 to-transparent",
-          "transform translate-y-full transition-transform duration-reveal ease-organic",
-          "group-hover:translate-y-0"
+          "absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent",
+          "opacity-0 pointer-events-none transition-opacity duration-reveal ease-organic",
+          "group-hover:opacity-100 group-hover:pointer-events-auto"
         )}
       >
         <div className="flex items-center gap-2 text-xs">

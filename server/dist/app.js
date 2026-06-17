@@ -41,8 +41,9 @@ app.use((req, _res, next) => {
 // CORS configuration with multiple allowed origins
 const allowedOrigins = [
     "https://artiveartofforgottenthings.vercel.app",
-    "http://localhost:5173", // for local dev
-    "http://localhost:3000" // alternative local dev port
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8080",
 ];
 app.use((0, cors_1.default)({
     origin: function (origin, callback) {

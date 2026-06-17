@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Fork } from '../models/Fork';
 import { Seed } from '../models/Seed';
+import { Lineage } from '../models/Lineage';
 
 export async function getLineage(req: Request, res: Response) {
   const { id } = req.params as { id: string };
@@ -26,31 +27,65 @@ export async function exportLineage(req: Request, res: Response) {
 
 async function getLineageInternal(id: string, depth: number) {
   try {
-    // First, find the root seed by traversing up the lineage
     const rootSeedId = await findRootSeed(id);
     if (!rootSeedId) {
-      // If we can't find a root seed, fall back to the original behavior
-      console.log(`🌳 No root seed found for ${id}, using original logic`);
+      console.log(`🌳 No root seed found for ${id}, using fallback BFS`);
       return getLineageFromNode(id, depth);
     }
-    
-    console.log(`🌳 Building complete lineage tree from root seed: ${rootSeedId}`);
-    
-    // Build the complete lineage tree from the root seed
+
+    // Fast path: Lineage table stores all descendant IDs for the root seed.
+    // One lookup + one batch Fork query replaces depth*frontier DB queries.
+    const cachedLineage = await Lineage.findOne(
+      { seedId: new mongoose.Types.ObjectId(rootSeedId) },
+      { children: 1 }
+    ).lean();
+
+    if (cachedLineage && cachedLineage.children.length > 0) {
+      console.log(`🌳 Fast path: Lineage cache hit — ${cachedLineage.children.length} descendants`);
+
+      // Single batch query: fetch parentSeed for every known descendant
+      const forks = await Fork.find(
+        { _id: { $in: cachedLineage.children } },
+        { _id: 1, parentSeed: 1 }
+      ).lean();
+
+      const nodes: string[] = [rootSeedId];
+      const edges: Array<{ parent: string; child: string }> = [];
+      const seen = new Set<string>([rootSeedId]);
+
+      for (const fork of forks) {
+        const child = String(fork._id);
+        const parent = String((fork as any).parentSeed);
+        if (!seen.has(child)) {
+          seen.add(child);
+          nodes.push(child);
+        }
+        edges.push({ parent, child });
+      }
+
+      console.log(`🌳 Fast path complete: ${nodes.length} nodes, ${edges.length} edges`);
+      return { nodes, edges };
+    }
+
+    // Slow path: BFS through Fork collection level by level
+    console.log(`🌳 Slow path: BFS from root seed ${rootSeedId}`);
     const visited = new Set<string>([rootSeedId]);
     const nodes: string[] = [rootSeedId];
     const edges: Array<{ parent: string; child: string }> = [];
     let frontier: string[] = [rootSeedId];
-    
+
     for (let d = 0; d < depth; d++) {
       const next: string[] = [];
       for (const parentId of frontier) {
-        // Look for forks where parentSeed equals the current ID (works for both seeds and forks)
-        const forks = await Fork.find({ parentSeed: new mongoose.Types.ObjectId(parentId) }, { _id: 1 }).limit(200).lean();
+        const forks = await Fork.find(
+          { parentSeed: new mongoose.Types.ObjectId(parentId) },
+          { _id: 1 }
+        ).limit(200).lean();
+
         for (const f of forks) {
           const child = String(f._id);
           edges.push({ parent: parentId, child });
-          if (!visited.has(child)) {
+          if (!visited.has(child)) {   // cycle guard
             visited.add(child);
             nodes.push(child);
             next.push(child);
@@ -58,13 +93,13 @@ async function getLineageInternal(id: string, depth: number) {
         }
       }
       frontier = next;
+      if (frontier.length === 0) break; // nothing left to expand
     }
-    
-    console.log(`🌳 Built complete lineage tree with ${nodes.length} nodes and ${edges.length} edges`);
+
+    console.log(`🌳 Slow path complete: ${nodes.length} nodes, ${edges.length} edges`);
     return { nodes, edges };
   } catch (error) {
     console.error(`❌ Error in getLineageInternal for ${id}:`, error);
-    // Fall back to original logic on error
     return getLineageFromNode(id, depth);
   }
 }

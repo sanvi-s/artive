@@ -251,9 +251,9 @@ const Index = () => {
                     size="lg"
                     className="shadow-[0_0_10px_rgba(255,255,255,0.2)] hover:brightness-110 transition-all"
                     style={{
-                      background: 'linear-gradient(90deg, #b38bff 0%, #f9c6b8 50%, #ffe4a3 100%)',
+                      background: '#d9a852',
                       border: 'none',
-                      color: '#1a1a1a'
+                      color: '#fff'
                     }}
                   >
                     Share your unfinished idea

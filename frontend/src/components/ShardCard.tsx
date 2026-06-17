@@ -52,8 +52,8 @@ export const ShardCard = ({
             transform: isHovered ? 'scale(1.05)' : 'scale(1)'
           }}
         />
-        <div 
-          className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/40 to-transparent transition-opacity duration-300"
+        <div
+          className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent transition-opacity duration-300"
           style={{
             opacity: isHovered ? 0.75 : 1
           }}

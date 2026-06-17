@@ -8,8 +8,6 @@
     "build": "node build.js",
     "start": "node dist/index.js",
     "start:prod": "NODE_ENV=production node dist/index.js",
-    "migrate:up": "ts-node ./src/scripts/runMigrations.ts",
-    "migrate:status": "ts-node ./src/scripts/migrationStatus.ts",
     "postbuild": "echo 'Build completed successfully'",
     "prestart": "npm run build"
   },

@@ -63,7 +63,7 @@ const About = () => {
             "Art is never finished, only abandoned."
           </p>
           <p className="text-sm italic text-muted-foreground mt-2 font-serif">
-            — Leonardo da Vinci
+            - Leonardo da Vinci
           </p>
         </div>
       </header>
@@ -118,7 +118,7 @@ const About = () => {
             <h3 className="font-display text-xl font-semibold mb-3 text-foreground">Sanvi Shanishchara</h3>
             <p className="text-accent-1 italic mb-4 font-medium text-base">Developer</p>
             <p className="text-base leading-relaxed text-foreground/90 max-w-4xl mx-auto font-serif">
-              Artive was created by Sanvi, who has always found beauty in the unfinished. She often describes herself as someone who can never quite finish a poem—someone who collects fragments of thought, paints that pause mid-stroke, and hobbies that drift halfway before transforming into something new. It was from this realization that Artive was born—a space for the jack of all trades, master of none. Through Artive, Sanvi sought to build a platform that embraces incompletion as art in itself, where half-formed ideas can evolve, connect, and find meaning in collaboration.
+              Artive was created by Sanvi, who has always found beauty in the unfinished. She often describes herself as someone who can never quite finish a poem, someone who collects fragments of thought, paints that pause mid-stroke, and hobbies that drift halfway before transforming into something new. It was from this realization that Artive was born, a space for the jack of all trades, master of none. Through Artive, Sanvi sought to build a platform that embraces incompletion as art in itself, where half-formed ideas can evolve, connect, and find meaning in collaboration.
             </p>
             
             {/* Social Media Links */}
