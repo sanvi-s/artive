@@ -599,7 +599,11 @@ if (!apiBase) {
   };
 
   // Build real timeline from enriched lineage data (no additional fetches needed)
-  const buildRealTimeline = (lineageData: LineageData, rootSeedId: string) => {
+  const buildRealTimeline = (lineageData: LineageData, requestedId: string) => {
+    // Root is the node with no parentId in the response (server always returns from root)
+    const rootNode = lineageData.nodes.find(n => !n.parentId);
+    const rootId = rootNode?.id ?? requestedId;
+
     const calculateGeneration = (nodeId: string, visited = new Set<string>()): number => {
       if (visited.has(nodeId)) return 0;
       visited.add(nodeId);
@@ -632,7 +636,7 @@ if (!apiBase) {
       } as any;
 
       allSeeds.push(timelineSeed);
-      if (n.id === rootSeedId) setRealCenterSeed(timelineSeed);
+      if (n.id === rootId) setRealCenterSeed(timelineSeed);
     }
 
     setRealSeeds(allSeeds);

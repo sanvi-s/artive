@@ -481,7 +481,11 @@ if (!apiBase) {
   };
 
   // Build real tree from enriched lineage data (no additional fetches needed)
-  const buildRealTree = (lineageData: LineageData, rootSeedId: string) => {
+  const buildRealTree = (lineageData: LineageData, requestedId: string) => {
+    // Root is the node with no parentId in the response (server always returns from root)
+    const rootNode = lineageData.nodes.find(n => !n.parentId);
+    const rootId = rootNode?.id ?? requestedId;
+
     const allNodes: Node[] = lineageData.nodes.map(n => {
       const authorObj = typeof n.author === 'object' ? n.author : { displayName: String(n.author || '') };
       const authorName = authorObj?.displayName || authorObj?.username || 'Unknown';
@@ -495,7 +499,7 @@ if (!apiBase) {
         y: 0,
         forks: n.forkCount || 0,
         date: n.createdAt ? new Date(n.createdAt).toISOString().split('T')[0] : '',
-        type: n.id === rootSeedId ? "original" : "fork",
+        type: n.id === rootId ? "original" : "fork",
         seedType: (n.thumbnailUrl || n.imageUrl) ? 'visual' : 'text',
         content: n.content || '',
         parentId: n.parentId,
@@ -503,7 +507,7 @@ if (!apiBase) {
     });
 
     const edges = lineageData.edges.map(e => ({ from: e.parent, to: e.child }));
-    const positionedNodes = calculateTreePositions(allNodes, edges, rootSeedId);
+    const positionedNodes = calculateTreePositions(allNodes, edges, rootId);
     setRealNodes(positionedNodes);
   };
 
