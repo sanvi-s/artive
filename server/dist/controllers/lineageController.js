@@ -150,10 +150,12 @@ function buildSeedNode(seed) {
         createdAt: seed.createdAt instanceof Date ? seed.createdAt.toISOString() : String(seed.createdAt),
     };
 }
+function stripHtml(html) {
+    return html.replace(/<[^>]+>/g, '').trim();
+}
 function buildForkNode(fork, parentId) {
     const rawContent = fork.contentDelta || fork.description || '';
-    // Strip HTML tags and use first 60 chars as title; skip generic "A response at depth N" summaries
-    const plainContent = rawContent.replace(/<[^>]+>/g, '').trim();
+    const plainContent = stripHtml(rawContent);
     const summaryIsGeneric = /^A response at depth/i.test(fork.summary || '');
     const title = plainContent.slice(0, 60) || (!summaryIsGeneric ? fork.summary : null) || 'Fork';
     return {
@@ -161,7 +163,7 @@ function buildForkNode(fork, parentId) {
         type: 'fork',
         title,
         author: fork.author,
-        content: fork.contentDelta || fork.summary || fork.description || '',
+        content: plainContent,
         thumbnailUrl: fork.thumbnailUrl,
         imageUrl: fork.imageUrl,
         forkCount: fork.forkCount || 0,
