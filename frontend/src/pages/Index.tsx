@@ -67,8 +67,11 @@ const Index = () => {
       
       // Handle visual seed descriptions properly
       const description = seedData.type === 'visual' ? (seedData as any).description || '' : '';
-      const contentSnippet = seedData.type === 'visual' ? description : (seedData.content?.slice(0, 400) || "");
-      const contentFull = seedData.type === 'visual' ? description : (seedData.content || "");
+      const rawContent = seedData.content || "";
+      // Strip HTML tags for the searchable/preview snippet; keep full HTML for contentFull
+      const plainContent = rawContent.replace(/<[^>]+>/g, '');
+      const contentSnippet = seedData.type === 'visual' ? description : plainContent.slice(0, 400);
+      const contentFull = seedData.type === 'visual' ? description : rawContent;
       
       const res = await fetch(`${apiBase}/api/seeds`, {
         method: "POST",
@@ -125,7 +128,7 @@ const Index = () => {
             title: s.title,
             author: s.author?.displayName || s.author?.username || 'Anonymous',
             authorId: s.author?._id,
-            time: s.createdAt,
+            time: new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             createdAt: s.createdAt,
             forks: s.forkCount || 0,
             sparks: 0,
@@ -329,17 +332,16 @@ const Index = () => {
             <div className="animate-spin h-8 w-8 border-2 border-accent-1 border-t-transparent rounded-full"></div>
           </div>
         ) : featuredSeeds.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
             {featuredSeeds.map((seed, index) => (
-              <div key={seed.id} className={`${seed.type === 'text' ? 'row-span-1' : 'row-span-2'}`}>
-                <UnifiedSeedCard
-                  seed={seed}
-                  className="animate-fade-in-up h-full"
-                  style={{ animationDelay: `${index * 0.1}s` } as React.CSSProperties}
-                  onFork={handleForkSeed}
-                  onView={handleViewSeed}
-                />
-              </div>
+              <UnifiedSeedCard
+                key={seed.id}
+                seed={seed}
+                className="animate-fade-in-up"
+                style={{ animationDelay: `${index * 0.1}s` } as React.CSSProperties}
+                onFork={handleForkSeed}
+                onView={handleViewSeed}
+              />
             ))}
           </div>
         ) : (
@@ -373,6 +375,7 @@ const Index = () => {
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         onFork={handleForkSeed}
+        allSeeds={featuredSeeds}
       />
 
       <ForkModal 

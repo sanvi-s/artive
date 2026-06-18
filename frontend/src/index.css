@@ -315,3 +315,36 @@ All colors MUST be HSL.
     animation: organic-fade-in var(--duration-reveal) var(--ease-organic);
   }
 }
+
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Rich text rendered output */
+.rich-content strong, .rich-content b { font-weight: 700; }
+.rich-content em, .rich-content i { font-style: italic; }
+.rich-content .cursive-text {
+  font-family: 'Caveat', cursive;
+  font-size: 1.1em;
+  letter-spacing: 0.01em;
+}
+
+/* Rich text editor area */
+.rich-editor { caret-color: hsl(var(--accent-1)); }
+.rich-editor strong, .rich-editor b { font-weight: 700; }
+.rich-editor em, .rich-editor i { font-style: italic; }
+.rich-editor .cursive-text {
+  font-family: 'Caveat', cursive;
+  font-size: 1.1em;
+  letter-spacing: 0.01em;
+}
+.rich-editor:empty:before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  opacity: 0.5;
+}

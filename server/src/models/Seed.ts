@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export type SeedType = 'poem' | 'visual' | 'music' | 'code' | 'other';
+export type SeedType = 'poem' | 'visual' | 'music' | 'other';
 
 export interface ISeed extends Document {
   title: string;
@@ -14,6 +14,7 @@ export interface ISeed extends Document {
   tags?: string[];
   thumbnailUrl?: string;
   deletedAt?: Date | null;
+  embedding?: number[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,13 +25,14 @@ const SeedSchema = new Schema<ISeed>(
     contentSnippet: { type: String, maxlength: 400 },
     contentFull: { type: String, maxlength: 20000 },
     contentIsExternal: { type: Boolean, default: false },
-    type: { type: String, enum: ['poem', 'visual', 'music', 'code', 'other'], default: 'other', index: true },
+    type: { type: String, enum: ['poem', 'visual', 'music', 'other'], default: 'other', index: true },
     author: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     forkCount: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
     tags: { type: [String], index: true },
     thumbnailUrl: { type: String },
     deletedAt: { type: Date, default: null },
+    embedding: { type: [Number], default: undefined, select: false },
   },
   { timestamps: true }
 );

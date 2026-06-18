@@ -9,6 +9,7 @@ export interface IFork extends Document {
   imageUrl?: string;
   thumbnailUrl?: string;
   forkCount: number;
+  embedding?: number[];
   createdAt: Date;
 }
 
@@ -22,6 +23,7 @@ const ForkSchema = new Schema<IFork>(
     imageUrl: { type: String },
     thumbnailUrl: { type: String },
     forkCount: { type: Number, default: 0, min: 0 },
+    embedding: { type: [Number], default: undefined, select: false },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );

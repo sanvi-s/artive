@@ -23,7 +23,6 @@ export const TextCard = ({
   onDelete
 }: TextCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
@@ -49,18 +48,16 @@ export const TextCard = ({
   };
 
 
-  const displayContent = isExpanded ? (seed as TextSeed).content : (seed as TextSeed).excerpt;
-  const shouldTruncate = !isExpanded && (seed as TextSeed).content.length > (seed as TextSeed).excerpt.length;
+  const displayContent = (seed as TextSeed).content || (seed as TextSeed).excerpt;
 
   return (
         <div
           className={cn(
-            "relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent backdrop-blur-paper border border-amber-300/40 dark:border-border/20 transition-all duration-hover ease-organic hover:scale-[1.02] hover:-translate-y-1 animate-organic-fade-in hover:border-accent-1/30 h-fit max-h-[300px] torn_container torn_left torn_right",
+            "relative group cursor-pointer bg-gradient-to-br from-amber-100 to-amber-200 dark:from-transparent dark:to-transparent backdrop-blur-paper border border-amber-300/40 dark:border-border/20 transition-all duration-hover ease-organic hover:scale-[1.02] hover:-translate-y-1 animate-organic-fade-in hover:border-accent-1/30 h-fit self-start torn_container torn_left torn_right",
             className
           )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={() => setIsExpanded(!isExpanded)}
       style={style}
     >
       <div></div>
@@ -107,34 +104,10 @@ export const TextCard = ({
         </h3>
 
         {/* Text content */}
-        <div className="space-y-2">
-          <div className="relative">
-            <p className="text-foreground/90 leading-relaxed text-sm font-serif line-clamp-4 whitespace-pre-wrap">
-              {displayContent}
-            </p>
-            
-            {/* Fade mask for truncated content */}
-            {shouldTruncate && (
-              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-card to-transparent pointer-events-none" />
-            )}
-          </div>
-
-          {/* Thread parts preview */}
-          {seed.isThread && (seed as TextSeed).threadParts && (seed as TextSeed).threadParts.length > 1 && !isExpanded && (
-            <div className="space-y-2">
-              {(seed as TextSeed).threadParts.slice(0, 2).map((part, index) => (
-                <div key={index} className="text-sm text-muted-foreground italic border-l-2 border-accent-1/30 pl-3">
-                  {part.length > 60 ? `${part.substring(0, 60)}...` : part}
-                </div>
-              ))}
-              {(seed as TextSeed).threadParts.length > 2 && (
-                <div className="text-xs text-muted-foreground italic">
-                  +{(seed as TextSeed).threadParts.length - 2} more thoughts...
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <p
+          className="text-foreground/90 leading-relaxed text-sm font-serif whitespace-pre-wrap rich-content"
+          dangerouslySetInnerHTML={{ __html: displayContent }}
+        />
 
         {/* Tags */}
         {seed.tags.length > 0 && (
@@ -160,7 +133,7 @@ export const TextCard = ({
           <div className="flex items-center gap-2">
             <span className="font-handwritten text-accent-1">{seed.author}</span>
             <span>•</span>
-            <span>{seed.time}</span>
+            <span>{new Date(seed.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           </div>
           
           <div className="flex items-center gap-2">
@@ -201,12 +174,6 @@ export const TextCard = ({
         </div>
       </div>
 
-        {/* Expand/collapse indicator */}
-        {shouldTruncate && (
-          <div className="absolute bottom-12 right-3 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded-full border border-border/30">
-            {isExpanded ? 'Show less' : 'Read more'}
-          </div>
-        )}
       </div>
     </div>
   );

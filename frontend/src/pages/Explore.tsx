@@ -11,7 +11,7 @@ import { ForkModal } from "@/components/ForkModal";
 import { Seed } from "@/types/seed";
 import { useAuth } from "@/contexts/AuthContext";
 
-const categories = ["Text", "Visual", "Music", "Code"];
+const categories = ["Text", "Visual", "Music"];
 const sortOptions = ["New", "Trending", "Most Forked", "Most Sparked", "Oldest"];
 
 const Explore = () => {
@@ -61,7 +61,7 @@ const Explore = () => {
           title: s.title,
           author: s.author?.displayName || s.author?.username || 'Anonymous',
           authorId: s.author?._id,
-          time: s.createdAt,
+          time: new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           createdAt: s.createdAt,
           forks: s.forkCount || 0,
           sparks: 0,
@@ -91,7 +91,7 @@ const Explore = () => {
             title: f.summary || f.title || 'Fork',
             author: f.author?.displayName || f.author?.username || 'Anonymous',
             authorId: f.author?._id,
-            time: f.createdAt,
+            time: new Date(f.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             createdAt: f.createdAt,
             forks: 0,
             sparks: 0,
@@ -265,7 +265,7 @@ const Explore = () => {
             <div className="animate-spin h-8 w-8 border-2 border-accent-1 border-t-transparent rounded-full"></div>
           </div>
         ) : displayedSeeds.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start">
             {displayedSeeds.map((seed) => (
               <UnifiedSeedCard
                 key={seed.id}
@@ -297,6 +297,7 @@ const Explore = () => {
         onClose={() => setIsViewModalOpen(false)}
         onFork={handleForkSeed}
         onForkCreated={refreshSeedsAndForks}
+        allSeeds={allSeeds}
       />
 
       {/* Fork Modal */}

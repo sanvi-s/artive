@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useForklore } from "@/contexts/ForkloreContext";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { stripHtml } from "@/utils/richText";
 
 interface ForkModalProps {
   isOpen: boolean;
   onClose: () => void;
   seedId: string | null;
-  seedType?: 'text' | 'visual' | 'music' | 'code' | 'other';
+  seedType?: 'text' | 'visual' | 'music' | 'other';
   initialText?: string;
   onForkCreated?: () => void;
 }
@@ -139,8 +141,13 @@ export const ForkModal = ({ isOpen, onClose, seedId, seedType, initialText, onFo
 
           {seedType === 'text' && (
             <div className="space-y-2">
-              <Label htmlFor="text">Text</Label>
-              <Textarea id="text" rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder="Edit or add to the original text here" />
+              <Label>Your version</Label>
+              <RichTextEditor
+                value={text}
+                onChange={(html) => setText(html)}
+                placeholder="Edit or add to the original text here..."
+                minHeight="180px"
+              />
             </div>
           )}
 

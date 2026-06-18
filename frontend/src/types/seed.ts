@@ -41,27 +41,17 @@ export interface MusicSeed extends BaseSeed {
   waveform?: number[];
 }
 
-// Code seed interface
-export interface CodeSeed extends BaseSeed {
-  type: 'code';
-  code: string;
-  language: string;
-  description: string;
-}
-
 // Union type for all seed types
-export type Seed = TextSeed | VisualSeed | MusicSeed | CodeSeed;
+export type Seed = TextSeed | VisualSeed | MusicSeed;
 
 // Seed creation form data
 export interface SeedCreationData {
-  type: 'text' | 'visual' | 'music' | 'code';
+  type: 'text' | 'visual' | 'music';
   title: string;
   content?: string; // For text seeds
   image?: string; // For visual seeds
   audioUrl?: string; // For music seeds
-  code?: string; // For code seeds
-  language?: string; // For code seeds
-  description?: string; // For code seeds
+  description?: string; // For visual seeds
   tags: string[];
   category: string;
   isThread?: boolean;

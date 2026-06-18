@@ -6,10 +6,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { SeedCreationData } from "@/types/seed";
-import { X, Plus, Type, Image, Music, Code, Quote, Sparkles } from "lucide-react";
+import { X, Plus, Type, Image, Music, Quote, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useNavigate } from "react-router-dom";
+import { RichTextEditor } from "@/components/RichTextEditor";
 
 interface PlantSeedModalProps {
   children: React.ReactNode;
@@ -20,28 +21,24 @@ const seedTypes = [
   { id: 'text', label: 'Text', icon: Type, description: 'Poems, thoughts, stories' },
   { id: 'visual', label: 'Visual', icon: Image, description: 'Images, sketches, art' },
   { id: 'music', label: 'Music', icon: Music, description: 'Audio, melodies, sounds' },
-  { id: 'code', label: 'Code', icon: Code, description: 'Snippets, algorithms, scripts' },
 ];
 
-const categories = ['Poetry', 'Reflections', 'Visual', 'Music', 'Code', 'Random'];
+const categories = ['Poetry', 'Reflections', 'Visual', 'Music', 'Random'];
 
 export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) => {
   const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<'text' | 'visual' | 'music' | 'code'>('text');
+  const [selectedType, setSelectedType] = useState<'text' | 'visual' | 'music'>('text');
   const [formData, setFormData] = useState<SeedCreationData>({
     type: 'text',
     title: '',
     content: '',
     tags: [],
     category: 'Poetry',
-    isThread: false,
-    threadParts: [],
   });
   const [newTag, setNewTag] = useState('');
-  const [newThreadPart, setNewThreadPart] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -132,8 +129,6 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
       content: '',
       tags: [],
       category: 'Poetry',
-      isThread: false,
-      threadParts: [],
     });
     setImageFile(null);
     setImagePreview(null);
@@ -156,24 +151,7 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
     }));
   };
 
-  const addThreadPart = () => {
-    if (newThreadPart.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        threadParts: [...(prev.threadParts || []), newThreadPart.trim()]
-      }));
-      setNewThreadPart('');
-    }
-  };
-
-  const removeThreadPart = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      threadParts: prev.threadParts?.filter((_, i) => i !== index) || []
-    }));
-  };
-
-  const handleTypeChange = (type: 'text' | 'visual' | 'music' | 'code') => {
+  const handleTypeChange = (type: 'text' | 'visual' | 'music') => {
     setSelectedType(type);
     setFormData(prev => ({
       ...prev,
@@ -181,7 +159,6 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
       content: type === 'text' ? prev.content : '',
       image: type === 'visual' ? prev.image : undefined,
       audioUrl: type === 'music' ? prev.audioUrl : undefined,
-      code: type === 'code' ? prev.code : undefined,
     }));
   };
 
@@ -246,80 +223,14 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
 
           {/* Content based on type */}
           {selectedType === 'text' && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="content" className="text-sm font-medium">
-                  Your thoughts
-                </Label>
-                <Textarea
-                  id="content"
-                  value={formData.content}
-                  onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder="a half-thought, a whisper of a line..."
-                  className="torn-edge-soft min-h-[120px] font-serif"
-                  required
-                />
-              </div>
-
-              {/* Thread option */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isThread"
-                    checked={formData.isThread}
-                    onChange={(e) => setFormData(prev => ({ ...prev, isThread: e.target.checked }))}
-                    className="rounded border-border"
-                  />
-                  <Label htmlFor="isThread" className="text-sm">
-                    This is part of a thread
-                  </Label>
-                </div>
-
-                {formData.isThread && (
-                  <div className="space-y-3 pl-6 border-l-2 border-accent-1/30">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Add thread parts</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={newThreadPart}
-                          onChange={(e) => setNewThreadPart(e.target.value)}
-                          placeholder="Another thought..."
-                          className="torn-edge-soft"
-                        />
-                        <Button
-                          type="button"
-                          onClick={addThreadPart}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {formData.threadParts && formData.threadParts.length > 0 && (
-                      <div className="space-y-2">
-                        {formData.threadParts.map((part, index) => (
-                          <div key={index} className="flex items-center gap-2 p-2 bg-card/50 rounded border">
-                            <span className="text-xs text-muted-foreground">{index + 1}.</span>
-                            <span className="flex-1 text-sm">{part}</span>
-                            <Button
-                              type="button"
-                              onClick={() => removeThreadPart(index)}
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Your thoughts</Label>
+              <RichTextEditor
+                value={formData.content || ""}
+                onChange={(html) => setFormData(prev => ({ ...prev, content: html }))}
+                placeholder="a half-thought, a whisper of a line..."
+                minHeight="160px"
+              />
             </div>
           )}
 
@@ -377,37 +288,6 @@ export const PlantSeedModal = ({ children, onPlantSeed }: PlantSeedModalProps) =
                 className="torn-edge-soft"
                 required
               />
-            </div>
-          )}
-
-          {selectedType === 'code' && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="language" className="text-sm font-medium">
-                  Language
-                </Label>
-                <Input
-                  id="language"
-                  value={formData.language || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, language: e.target.value }))}
-                  placeholder="JavaScript, Python, etc."
-                  className="torn-edge-soft"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="code" className="text-sm font-medium">
-                  Code
-                </Label>
-                <Textarea
-                  id="code"
-                  value={formData.code || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value }))}
-                  placeholder="// Your half-finished code..."
-                  className="torn-edge-soft min-h-[120px] font-mono text-sm"
-                  required
-                />
-              </div>
             </div>
           )}
 
