@@ -40,13 +40,14 @@ const SeedSchema = new mongoose_1.Schema({
     contentSnippet: { type: String, maxlength: 400 },
     contentFull: { type: String, maxlength: 20000 },
     contentIsExternal: { type: Boolean, default: false },
-    type: { type: String, enum: ['poem', 'visual', 'music', 'code', 'other'], default: 'other', index: true },
+    type: { type: String, enum: ['poem', 'visual', 'music', 'other'], default: 'other', index: true },
     author: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     forkCount: { type: Number, default: 0 },
     likes: { type: Number, default: 0 },
     tags: { type: [String], index: true },
     thumbnailUrl: { type: String },
     deletedAt: { type: Date, default: null },
+    embedding: { type: [Number], default: undefined, select: false },
 }, { timestamps: true });
 SeedSchema.index({ type: 1, createdAt: -1 });
 SeedSchema.index({ title: 'text', contentSnippet: 'text' });

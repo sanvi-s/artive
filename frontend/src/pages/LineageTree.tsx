@@ -501,7 +501,7 @@ if (!apiBase) {
         date: n.createdAt ? new Date(n.createdAt).toISOString().split('T')[0] : '',
         type: n.id === rootId ? "original" : "fork",
         seedType: (n.thumbnailUrl || n.imageUrl) ? 'visual' : 'text',
-        content: n.content || '',
+        content: (n.content || '').replace(/<[^>]+>/g, '').trim(),
         parentId: n.parentId,
       } as Node & { seedType: string; content: string; parentId?: string };
     });
@@ -1060,7 +1060,8 @@ if (!apiBase) {
 
                 {/* Labels - high-contrast pills for dark mode */}
                 {(() => {
-                  const title = node.title.length > 15 ? node.title.substring(0,15) + '...' : node.title;
+                  const cleanTitle = node.title.replace(/<[^>]+>/g, '').trim();
+                  const title = cleanTitle.length > 15 ? cleanTitle.substring(0,15) + '...' : cleanTitle;
                   const titleWidth = Math.max(60, title.length * 7);
                   const titleY = node.y + size + 20;
                   const labelBg = isDark ? 'rgba(60, 60, 65, 0.8)' : 'rgba(255,255,255,0.85)';
@@ -1182,8 +1183,8 @@ if (!apiBase) {
                         {node.title}
                       </h3>
                       <div className="prose prose-sm max-w-none text-amber-700 dark:text-orange-200">
-                        <p className="line-clamp-4 leading-relaxed whitespace-pre-wrap">
-                          {(node as any).content || 'No content available'}
+                        <p className="line-clamp-4 leading-relaxed">
+                          {((node as any).content || '').replace(/<[^>]+>/g, '').trim() || 'No content available'}
                         </p>
                       </div>
                     </div>

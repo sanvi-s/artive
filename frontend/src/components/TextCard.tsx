@@ -48,7 +48,9 @@ export const TextCard = ({
   };
 
 
-  const displayContent = (seed as TextSeed).content || (seed as TextSeed).excerpt;
+  const rawContent = (seed as TextSeed).content || (seed as TextSeed).excerpt || '';
+  // Strip HTML tags for the card preview; full HTML is shown in the modal
+  const displayContent = rawContent.replace(/<[^>]+>/g, '').trim();
 
   return (
         <div
@@ -104,10 +106,9 @@ export const TextCard = ({
         </h3>
 
         {/* Text content */}
-        <p
-          className="text-foreground/90 leading-relaxed text-sm font-serif whitespace-pre-wrap rich-content"
-          dangerouslySetInnerHTML={{ __html: displayContent }}
-        />
+        <p className="text-foreground/90 leading-relaxed text-sm font-serif line-clamp-6">
+          {displayContent}
+        </p>
 
         {/* Tags */}
         {seed.tags.length > 0 && (

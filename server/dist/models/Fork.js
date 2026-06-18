@@ -44,5 +44,6 @@ const ForkSchema = new mongoose_1.Schema({
     imageUrl: { type: String },
     thumbnailUrl: { type: String },
     forkCount: { type: Number, default: 0, min: 0 },
+    embedding: { type: [Number], default: undefined, select: false },
 }, { timestamps: { createdAt: true, updatedAt: false } });
 exports.Fork = mongoose_1.default.models.Fork || mongoose_1.default.model('Fork', ForkSchema);

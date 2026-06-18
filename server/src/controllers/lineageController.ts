@@ -192,10 +192,15 @@ function buildSeedNode(seed: any): EnrichedNode {
 }
 
 function buildForkNode(fork: any, parentId: string): EnrichedNode {
+  const rawContent = fork.contentDelta || fork.description || '';
+  // Strip HTML tags and use first 60 chars as title; skip generic "A response at depth N" summaries
+  const plainContent = rawContent.replace(/<[^>]+>/g, '').trim();
+  const summaryIsGeneric = /^A response at depth/i.test(fork.summary || '');
+  const title = plainContent.slice(0, 60) || (!summaryIsGeneric ? fork.summary : null) || 'Fork';
   return {
     id: String(fork._id),
     type: 'fork',
-    title: fork.summary || 'Fork',
+    title,
     author: fork.author,
     content: fork.contentDelta || fork.summary || fork.description || '',
     thumbnailUrl: fork.thumbnailUrl,

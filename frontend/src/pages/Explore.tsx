@@ -18,6 +18,8 @@ const Explore = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Seed[] | null>(null);
+  const [searching, setSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSort, setSelectedSort] = useState("New");
   const [selectedSeed, setSelectedSeed] = useState<Seed | null>(null);
@@ -66,7 +68,7 @@ const Explore = () => {
           forks: s.forkCount || 0,
           sparks: 0,
           category: 'general',
-          tags: [],
+          tags: s.tags || [],
           type: s.type === 'poem' ? 'text' : s.type,
           content: s.contentFull || s.contentSnippet || '',
           excerpt: s.contentSnippet || s.title,
@@ -86,9 +88,15 @@ const Explore = () => {
           const forkDescription = f.description || '';
           const combinedContent = forkContent || forkDescription || originalContent;
           
+          const parentTitle = f.parentSeed?.title;
+          // If parentSeed didn't populate (fork-of-fork), use a stripped excerpt from content as title
+          const forkFallbackTitle = combinedContent
+            ? combinedContent.replace(/<[^>]+>/g, '').trim().slice(0, 60) || 'Fork'
+            : 'Fork';
+          const forkTitle = parentTitle ? `↳ ${parentTitle}` : forkFallbackTitle;
           return {
             id: f._id,
-            title: f.summary || f.title || 'Fork',
+            title: forkTitle,
             author: f.author?.displayName || f.author?.username || 'Anonymous',
             authorId: f.author?._id,
             time: new Date(f.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -96,13 +104,13 @@ const Explore = () => {
             forks: 0,
             sparks: 0,
             category: 'general',
-            tags: [],
+            tags: f.parentSeed?.tags || [],
             type: (f.imageUrl || f.thumbnailUrl) ? 'visual' : 'text',
             content: combinedContent,
-            excerpt: combinedContent.slice(0, 200) || f.summary || 'Fork',
+            excerpt: combinedContent.replace(/<[^>]+>/g, '').slice(0, 200) || forkTitle,
             image: f.thumbnailUrl || f.imageUrl || '',
             isForked: true,
-            parentId: f.parentSeed?._id || f.parentSeed // Ensure parentId is set correctly
+            parentId: f.parentSeed?._id || f.parentSeed
           };
         });
         allItems.push(...forks);
@@ -124,29 +132,63 @@ const Explore = () => {
     refreshSeedsAndForks();
   }, []);
 
+  // Debounced backend search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const apiBase = (import.meta as any).env.VITE_API_URL || "";
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `${apiBase}/api/search?q=${encodeURIComponent(searchQuery.trim())}&limit=50`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const mapped: Seed[] = (data.items || []).map((s: any) => ({
+            id: s._id,
+            title: s.title,
+            author: s.author?.displayName || s.author?.username || 'Anonymous',
+            authorId: s.author?._id,
+            time: new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            createdAt: s.createdAt,
+            forks: s.forkCount || 0,
+            sparks: 0,
+            category: 'general',
+            tags: s.tags || [],
+            type: s.type === 'poem' ? 'text' : s.type,
+            content: s.contentFull || s.contentSnippet || '',
+            excerpt: s.contentSnippet || s.title,
+            image: s.thumbnailUrl || '',
+            isForked: false,
+          }));
+          setSearchResults(mapped);
+        }
+      } catch (e) {
+        console.error('Search failed:', e);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+
+  // Use backend search results when searching, otherwise use full feed
+  const baseSeeds = searchResults !== null ? searchResults : allSeeds;
 
   // Filter and sort seeds
-  const displayedSeeds = allSeeds
+  const displayedSeeds = baseSeeds
     .filter((seed) => {
-      // Search filter - search in title, author, content, and tags
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = searchQuery === "" || 
-                           seed.title.toLowerCase().includes(searchLower) ||
-                           seed.author.toLowerCase().includes(searchLower) ||
-                           seed.tags.some(tag => tag.toLowerCase().includes(searchLower)) ||
-                           (seed.type === 'text' && seed.content.toLowerCase().includes(searchLower)) ||
-                           (seed.type === 'visual' && (seed as any).description?.toLowerCase().includes(searchLower)) ||
-                           (seed.type === 'code' && (seed as any).description?.toLowerCase().includes(searchLower));
-      
-      // Category filter - match by type or category
-      const matchesCategory = selectedCategory === "All" || 
-                             seed.category === selectedCategory ||
+      const matchesCategory = selectedCategory === "All" ||
                              (selectedCategory === "Text" && seed.type === 'text') ||
                              (selectedCategory === "Visual" && seed.type === 'visual') ||
-                             (selectedCategory === "Music" && seed.type === 'music') ||
-                             (selectedCategory === "Code" && seed.type === 'code');
-      
-      return matchesSearch && matchesCategory;
+                             (selectedCategory === "Music" && seed.type === 'music');
+      return matchesCategory;
     })
     .sort((a, b) => {
       switch (selectedSort) {
@@ -252,15 +294,19 @@ const Explore = () => {
         {/* Results Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-display font-semibold mb-2">
-            {selectedCategory === "All" ? "All Posts" : `${selectedCategory} Seeds`}
+            {searchQuery.trim()
+              ? `Results for "${searchQuery.trim()}"`
+              : selectedCategory === "All" ? "All Posts" : `${selectedCategory} Seeds`}
           </h1>
-          <p className="text-muted-foreground">
-            {displayedSeeds.length} {displayedSeeds.length === 1 ? "post" : "posts"} found
+          <p className="text-muted-foreground text-sm">
+            {searching
+              ? "Searching..."
+              : `${displayedSeeds.length} ${displayedSeeds.length === 1 ? "post" : "posts"} found`}
           </p>
         </div>
 
         {/* Masonry Grid */}
-        {loading ? (
+        {loading || searching ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin h-8 w-8 border-2 border-accent-1 border-t-transparent rounded-full"></div>
           </div>
@@ -279,13 +325,19 @@ const Explore = () => {
         ) : (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🌱</div>
-            <h3 className="text-xl font-display font-semibold mb-2">No posts yet</h3>
+            <h3 className="text-xl font-display font-semibold mb-2">
+              {searchQuery.trim() ? "Nothing found" : "No posts yet"}
+            </h3>
             <p className="text-muted-foreground mb-6">
-              Be the first to leave a trace.
+              {searchQuery.trim()
+                ? `No seeds match "${searchQuery.trim()}". Try different words.`
+                : "Be the first to leave a trace."}
             </p>
-            <Link to="/auth">
-              <Button variant="hero">Share your unfinished idea</Button>
-            </Link>
+            {!searchQuery.trim() && (
+              <Link to="/auth">
+                <Button variant="hero">Share your unfinished idea</Button>
+              </Link>
+            )}
           </div>
         )}
       </main>

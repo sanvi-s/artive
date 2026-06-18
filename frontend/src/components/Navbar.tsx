@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Search, Menu, X, LogOut, User } from "lucide-react";
+import { Menu, X, LogOut, User } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -79,12 +79,6 @@ export const Navbar = () => {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-2">
-            {/* Search */}
-            <Button variant="ghost" size="icon" className="hidden sm:flex">
-              <Search className="h-4 w-4" />
-              <span className="sr-only">Search</span>
-            </Button>
-
             {/* User Actions */}
             {isAuthenticated ? (
               <>

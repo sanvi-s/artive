@@ -133,7 +133,7 @@ const Index = () => {
             forks: s.forkCount || 0,
             sparks: 0,
             category: 'general',
-            tags: [],
+            tags: s.tags || [],
             type: s.type === 'poem' ? 'text' : s.type,
             content: s.contentFull || s.contentSnippet || '',
             excerpt: s.contentSnippet || s.title,
