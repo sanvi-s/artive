@@ -206,7 +206,7 @@ const Explore = () => {
     });
 
   const handleViewSeed = (seedId: string) => {
-    const seed = allSeeds.find(s => s.id === seedId);
+    const seed = [...allSeeds, ...(searchResults || [])].find(s => s.id === seedId);
     if (seed) {
       setSelectedSeed(seed);
       setIsViewModalOpen(true);

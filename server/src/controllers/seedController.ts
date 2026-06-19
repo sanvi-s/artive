@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Seed, type ISeed } from '../models/Seed';
 import { Fork } from '../models/Fork';
 import { clampString } from '../utils/validators';
+import { embedText } from '../services/mlsearch';
 
 export async function listSeeds(req: Request, res: Response) {
   const page = Math.max(1, Number(req.query.page || 1));
@@ -134,6 +135,13 @@ export async function createSeed(req: Request & { userId?: string }, res: Respon
       contentSnippet_preview: (seed.contentSnippet || '').slice(0, 80)
     });
   } catch {}
+
+  // fire-and-forget embedding
+  const embedText_ = [title, (seed as any).tags?.join(' '), contentSnippet].filter(Boolean).join(' ');
+  embedText(embedText_)
+    .then(embedding => Seed.findByIdAndUpdate(seed._id, { embedding }))
+    .catch(err => console.warn('[embed] seed embedding failed:', err));
+
   res.status(201).json({ id: seed._id });
 }
 

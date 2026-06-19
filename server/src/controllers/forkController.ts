@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Fork } from '../models/Fork';
 import { Seed } from '../models/Seed';
 import { Lineage } from '../models/Lineage';
+import { embedText } from '../services/mlsearch';
 
 // Helper function to find the root seed by traversing up the lineage
 async function findRootSeed(id: string): Promise<string | null> {
@@ -94,6 +95,16 @@ export async function createFork(req: Request & { userId?: string }, res: Respon
         );
         console.log(`🌳 Lineage updated for root ${rootSeedId}: added fork ${newForkId}`);
       }
+    }
+
+    // fire-and-forget embedding
+    if (newForkId) {
+      const parentTitle = (await Seed.findById(id).lean() as any)?.title || '';
+      const words = (contentDelta || '').split(/\s+/).slice(0, 500).join(' ');
+      const text = [parentTitle, summary, words].filter(Boolean).join(' ');
+      embedText(text)
+        .then(embedding => Fork.findByIdAndUpdate(newForkId, { embedding }))
+        .catch(err => console.warn('[embed] fork embedding failed:', err));
     }
 
     res.status(201).json({ ok: true });

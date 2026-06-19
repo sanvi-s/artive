@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -29,28 +29,46 @@ const typeIcon = (type: string) => {
 export const SeedViewModal = ({ seed, isOpen, onClose, onFork, onForkCreated, allSeeds = [] }: SeedViewModalProps) => {
   const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const [viewingSeed, setViewingSeed] = useState<Seed | null>(null);
+  const [similarSeeds, setSimilarSeeds] = useState<Seed[]>([]);
   const navigate = useNavigate();
   const { setSelectedSeedId } = useForklore();
   const { isAuthenticated } = useAuth();
 
   const activeSeed = viewingSeed || seed;
 
-  const relatedSeeds = useMemo(() => {
-    if (!activeSeed || allSeeds.length === 0) return [];
-    const currentTags = new Set(activeSeed.tags || []);
-    return allSeeds
-      .filter((s) => s.id !== activeSeed.id)
-      .map((s) => {
-        let score = 0;
-        if (s.type === activeSeed.type) score += 2;
-        (s.tags || []).forEach((t) => { if (currentTags.has(t)) score += 1; });
-        return { seed: s, score };
+  useEffect(() => {
+    if (!activeSeed?.id) { setSimilarSeeds([]); return; }
+    const apiBase = (import.meta as any).env.VITE_API_URL || "";
+    fetch(`${apiBase}/api/search/similar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: activeSeed.id, type: activeSeed.parentId ? "fork" : "seed" }),
+    })
+      .then((r) => r.ok ? r.json() : { items: [] })
+      .then((data) => {
+        console.log('[similar]', activeSeed.id, activeSeed.type, data);
+        const mapped: Seed[] = (data.items || []).map((s: any) => ({
+          id: s._id,
+          title: s.title,
+          author: s.author?.displayName || s.author?.username || "Anonymous",
+          authorId: s.author?._id,
+          time: new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          createdAt: s.createdAt,
+          forks: s.forkCount || 0,
+          sparks: 0,
+          category: "general",
+          tags: s.tags || [],
+          type: (s.type === 'visual' ? 'visual' : 'text') as Seed['type'],
+          content: s.contentFull || s.contentSnippet || "",
+          excerpt: s.contentSnippet || s.title,
+          image: s.thumbnailUrl || "",
+          description: s.contentSnippet || "",
+          isForked: false,
+        }));
+        setSimilarSeeds(mapped);
       })
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 4)
-      .map((x) => x.seed);
-  }, [activeSeed, allSeeds]);
+      .catch(() => setSimilarSeeds([]));
+  }, [activeSeed?.id]);
 
   if (!activeSeed) return null;
 
@@ -77,7 +95,7 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork, onForkCreated, al
   };
 
   const handleViewRelated = (seedId: string) => {
-    const found = allSeeds.find((s) => s.id === seedId);
+    const found = allSeeds.find((s) => s.id === seedId) || similarSeeds.find((s) => s.id === seedId);
     if (found) {
       setViewingSeed(found);
     }
@@ -248,13 +266,13 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork, onForkCreated, al
               </div>
 
               {/* Related posts */}
-              {relatedSeeds.length > 0 && (
+              {similarSeeds.length > 0 && (
                 <div className="pt-2 border-t border-white/5">
                   <p className="text-[10px] uppercase tracking-widest mb-4" style={{ color: 'hsl(30, 5%, 35%)' }}>
                     More like this
                   </p>
                   <div className="grid grid-cols-2 gap-6 pb-2">
-                    {relatedSeeds.map((r) => (
+                    {similarSeeds.map((r) => (
                       <UnifiedSeedCard
                         key={r.id}
                         seed={r}

@@ -29,6 +29,7 @@ export const config = {
     apiKey: requireEnv('CLOUDINARY_API_KEY', ''),
     apiSecret: requireEnv('CLOUDINARY_API_SECRET', ''),
   },
+  mlServerUrl: requireEnv('ML_SERVER_URL', ''),
   version: process.env.npm_package_version || '0.0.0',
 } as const;
 
