@@ -139,13 +139,17 @@ const Explore = () => {
       return;
     }
     setSearching(true);
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
         const apiBase = (import.meta as any).env.VITE_API_URL || "";
         const token = localStorage.getItem("token");
         const res = await fetch(
           `${apiBase}/api/search?q=${encodeURIComponent(searchQuery.trim())}&limit=50`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            signal: controller.signal,
+          }
         );
         if (res.ok) {
           const data = await res.json();
@@ -169,12 +173,19 @@ const Explore = () => {
           setSearchResults(mapped);
         }
       } catch (e) {
-        console.error('Search failed:', e);
+        if ((e as any)?.name !== 'AbortError') {
+          console.error('Search failed:', e);
+        }
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) {
+          setSearching(false);
+        }
       }
     }, 350);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [searchQuery]);
 
 
