@@ -42,7 +42,7 @@ export const SeedViewModal = ({ seed, isOpen, onClose, onFork, onForkCreated, al
     fetch(`${apiBase}/api/search/similar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: activeSeed.id, type: activeSeed.parentId ? "fork" : "seed" }),
+      body: JSON.stringify({ id: activeSeed.id, type: activeSeed.isForked ? "fork" : "seed" }),
     })
       .then((r) => r.ok ? r.json() : { items: [] })
       .then((data) => {
