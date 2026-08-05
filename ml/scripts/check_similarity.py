@@ -4,9 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from bson import ObjectId
 from config import db
-from services.embedding_service import get_model
-
-model = get_model()
+from services.embedding_service import model
 
 def cosine(a, b):
     a, b = np.array(a), np.array(b)

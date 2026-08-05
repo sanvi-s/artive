@@ -7,8 +7,8 @@ def search_seeds(query_embedding):
                 "index": "vector_index_seed",
                 "path": "embedding",
                 "queryVector": query_embedding.tolist(),
-                "numCandidates": 100,
-                "limit": 5
+                "numCandidates": 200,
+                "limit": 50
             }
         },
         {
@@ -51,8 +51,8 @@ def search_forks(query_embedding):
                 "index": "vector_index_fork",
                 "path": "embedding",
                 "queryVector": query_embedding.tolist(),
-                "numCandidates": 100,
-                "limit": 5
+                "numCandidates": 200,
+                "limit": 50
             }
         },
         {
@@ -113,6 +113,8 @@ def get_similar(post_id: str, post_type: str):
     combined.sort(key=lambda x: x["score"], reverse=True)
     return combined
 
+SIMILAR_SCORE_THRESHOLD = 0.2
+
 def search_seeds_by_vector(embedding, exclude_id=None):
     results = db["seeds"].aggregate([
         {
@@ -120,8 +122,8 @@ def search_seeds_by_vector(embedding, exclude_id=None):
                 "index": "vector_index_seed",
                 "path": "embedding",
                 "queryVector": embedding,
-                "numCandidates": 100,
-                "limit": 6
+                "numCandidates": 200,
+                "limit": 50
             }
         },
         {
@@ -158,7 +160,7 @@ def search_seeds_by_vector(embedding, exclude_id=None):
     items = list(results)
     if exclude_id:
         items = [r for r in items if r["_id"] != exclude_id]
-    return items[:5]
+    return [r for r in items if r["score"] >= SIMILAR_SCORE_THRESHOLD]
 
 def search_forks_by_vector(embedding, exclude_id=None):
     results = db["forks"].aggregate([
@@ -167,8 +169,8 @@ def search_forks_by_vector(embedding, exclude_id=None):
                 "index": "vector_index_fork",
                 "path": "embedding",
                 "queryVector": embedding,
-                "numCandidates": 100,
-                "limit": 6
+                "numCandidates": 200,
+                "limit": 50
             }
         },
         {
@@ -204,4 +206,4 @@ def search_forks_by_vector(embedding, exclude_id=None):
     items = list(results)
     if exclude_id:
         items = [r for r in items if r["_id"] != exclude_id]
-    return items[:5]
+    return [r for r in items if r["score"] >= SIMILAR_SCORE_THRESHOLD]
