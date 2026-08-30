@@ -9,33 +9,24 @@ FastAPI service for semantic search and text embeddings.
 uvicorn app:app --reload
 ```
 
-## Production (Render / Railway)
+## Render (required dashboard settings)
 
-Use the included `render.yaml` or `Procfile`. The service must:
+Those `Shutting down` / `Finished server process` lines are Render sending SIGTERM after idle time. On the free plan that is normal — **unless** a Health Check Path is set. Then Render marks the sleeping service unhealthy and it **will not wake** until you manually deploy again.
 
-1. Bind to `0.0.0.0` and the platform `$PORT`
-2. Use `/health` as the health check path (responds instantly; model loads in background)
-3. Pre-download the model during **build**, not on cold start:
-
-```bash
-pip install -r requirements.txt && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
-```
-
-Start command:
-
-```bash
-uvicorn app:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120
-```
-
-### Render settings (manual)
+In the Render service settings:
 
 | Setting | Value |
 |---|---|
 | Root directory | `ml` |
-| Build command | See above |
-| Start command | See above |
-| Health check path | `/health` |
+| Health Check Path | **leave empty** (do not use `/health`) |
+| Build command | `pip install -r requirements.txt && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"` |
+| Start command | `uvicorn app:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120` |
 
-Set `MONGO_URI` in the service environment variables.
+Environment variables:
 
-The backend pings `/health` every 10 minutes to prevent idle spin-down when the backend is running.
+- `MONGO_URI` — required
+- `ML_PUBLIC_URL` — your public ML URL, e.g. `https://artive-ml.onrender.com` (Render also sets `RENDER_EXTERNAL_URL` automatically; set this if keep-alive logs say it is disabled)
+
+After changing Health Check Path, **Manual Deploy → Deploy latest commit** so the new keep-alive code is running.
+
+The service pings its own public `/health` every 8 minutes. That inbound request is what stops Render from spinning the process down.

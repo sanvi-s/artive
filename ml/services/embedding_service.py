@@ -1,5 +1,5 @@
-import threading
 import logging
+import threading
 from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 _model = None
 _model_lock = threading.Lock()
 _model_loading = False
-_model_error: Exception | None = None
 
 
 def is_model_ready() -> bool:
@@ -19,7 +18,7 @@ def is_model_loading() -> bool:
 
 
 def get_model() -> SentenceTransformer:
-    global _model, _model_loading, _model_error
+    global _model, _model_loading
 
     if _model is not None:
         return _model
@@ -27,25 +26,25 @@ def get_model() -> SentenceTransformer:
     with _model_lock:
         if _model is not None:
             return _model
-        if _model_error is not None:
-            raise _model_error
 
         _model_loading = True
         try:
             logger.info("Loading SentenceTransformer model...")
-            _model = SentenceTransformer("all-MiniLM-L6-v2")
+            loaded = SentenceTransformer("all-MiniLM-L6-v2")
+            _model = loaded
             logger.info("SentenceTransformer model loaded")
-            return _model
-        except Exception as exc:
-            _model_error = exc
+            return loaded
+        except Exception:
             logger.exception("Failed to load SentenceTransformer model")
             raise
         finally:
             _model_loading = False
 
 
-def preload_model() -> None:
+def preload_model(delay_sec: float = 20) -> None:
     def _load() -> None:
+        if delay_sec > 0:
+            threading.Event().wait(delay_sec)
         try:
             get_model()
         except Exception:

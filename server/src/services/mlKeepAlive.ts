@@ -1,7 +1,7 @@
 import { config } from '../config/index';
 import { logger } from '../utils/logger';
 
-const PING_INTERVAL_MS = 10 * 60 * 1000;
+const PING_INTERVAL_MS = 8 * 60 * 1000;
 
 export function startMlKeepAlive() {
   if (!config.mlServerUrl) return;
@@ -21,5 +21,5 @@ export function startMlKeepAlive() {
 
   void ping();
   setInterval(ping, PING_INTERVAL_MS).unref();
-  logger.info('ML service keep-alive started (every 10 minutes)');
+  logger.info('ML service keep-alive started (every 8 minutes)');
 }
