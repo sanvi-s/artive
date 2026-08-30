@@ -2,6 +2,7 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import app from './app';
 import { connectWithRetry, disconnect } from './db/mongoose';
+import { startMlKeepAlive } from './services/mlKeepAlive';
 
 async function start() {
   try {
@@ -20,6 +21,7 @@ async function start() {
     logger.info(`🚀 Server listening on port ${config.port}`);
     logger.info(`🌍 Environment: ${config.env}`);
     logger.info(`🔗 CORS Origin: ${(config as any).cors?.origin || 'Not set'}`);
+    startMlKeepAlive();
   });
 
   // Add error handling for the server

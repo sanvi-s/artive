@@ -7,6 +7,7 @@ const config_1 = require("./config");
 const logger_1 = require("./utils/logger");
 const app_1 = __importDefault(require("./app"));
 const mongoose_1 = require("./db/mongoose");
+const mlKeepAlive_1 = require("./services/mlKeepAlive");
 async function start() {
     try {
         logger_1.logger.info('Starting server...');
@@ -23,6 +24,7 @@ async function start() {
         logger_1.logger.info(`🚀 Server listening on port ${config_1.config.port}`);
         logger_1.logger.info(`🌍 Environment: ${config_1.config.env}`);
         logger_1.logger.info(`🔗 CORS Origin: ${config_1.config.cors?.origin || 'Not set'}`);
+        (0, mlKeepAlive_1.startMlKeepAlive)();
     });
     // Add error handling for the server
     server.on('error', (err) => {

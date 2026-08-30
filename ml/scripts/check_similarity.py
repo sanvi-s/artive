@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 from bson import ObjectId
 from config import db
-from services.embedding_service import model
+from services.embedding_service import get_model
 
 def cosine(a, b):
     a, b = np.array(a), np.array(b)
@@ -42,7 +42,7 @@ print(f"Cosine similarity: {sim:.4f}")
 # COLLECTION = "seeds"  # "seeds" or "forks"
 
 # post = get_post(COLLECTION, POST_ID)
-# keyword_embedding = model.encode(KEYWORD)
+# keyword_embedding = get_model().encode(KEYWORD)
 # sim = cosine(keyword_embedding, post["embedding"])
 
 # print(f"Keyword : {KEYWORD!r}")

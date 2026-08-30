@@ -4,4 +4,5 @@ const express_1 = require("express");
 const searchController_1 = require("../controllers/searchController");
 const router = (0, express_1.Router)();
 router.get('/', searchController_1.search);
+router.post('/similar', searchController_1.similar);
 exports.default = router;

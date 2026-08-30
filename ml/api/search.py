@@ -1,17 +1,17 @@
 from fastapi import APIRouter
 from models.schemas import EmbedRequest, SearchRequest, SimilarRequest
-from services.embedding_service import model
+from services.embedding_service import get_model
 from services.search_service import search_seeds, search_forks, get_similar
 
 router = APIRouter()
 
 @router.post("/embed")
 def embed(request: EmbedRequest):
-    return {"embedding": model.encode(request.text).tolist()}
+    return {"embedding": get_model().encode(request.text).tolist()}
 
 @router.post("/search")
 def search(request: SearchRequest):
-    query_embedding = model.encode(request.query)
+    query_embedding = get_model().encode(request.query)
 
     seed_results = search_seeds(query_embedding)
 

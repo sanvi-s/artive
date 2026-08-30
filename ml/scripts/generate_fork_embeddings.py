@@ -2,7 +2,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import db
-from services.embedding_service import model
+from services.embedding_service import get_model
 
 db["forks"].update_many(
     {},
@@ -29,7 +29,7 @@ for fork in forks:
         + content_words
     )
 
-    embedding = model.encode(text)
+    embedding = get_model().encode(text)
 
     db["forks"].update_one(
         {"_id": fork["_id"]},

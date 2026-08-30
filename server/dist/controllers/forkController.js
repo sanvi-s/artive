@@ -13,6 +13,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const Fork_1 = require("../models/Fork");
 const Seed_1 = require("../models/Seed");
 const Lineage_1 = require("../models/Lineage");
+const mlsearch_1 = require("../services/mlsearch");
 // Helper function to find the root seed by traversing up the lineage
 async function findRootSeed(id) {
     const visited = new Set();
@@ -89,6 +90,15 @@ async function createFork(req, res) {
                 await Lineage_1.Lineage.findOneAndUpdate({ seedId: new mongoose_1.default.Types.ObjectId(rootSeedId) }, { $addToSet: { children: newForkId } }, { upsert: true, new: true });
                 console.log(`🌳 Lineage updated for root ${rootSeedId}: added fork ${newForkId}`);
             }
+        }
+        // fire-and-forget embedding
+        if (newForkId) {
+            const parentTitle = (await Seed_1.Seed.findById(id).lean())?.title || '';
+            const words = (contentDelta || '').split(/\s+/).slice(0, 500).join(' ');
+            const text = [parentTitle, summary, words].filter(Boolean).join(' ');
+            (0, mlsearch_1.embedText)(text)
+                .then(embedding => Fork_1.Fork.findByIdAndUpdate(newForkId, { embedding }))
+                .catch(err => console.warn('[embed] fork embedding failed:', err));
         }
         res.status(201).json({ ok: true });
     }

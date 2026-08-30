@@ -13,6 +13,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const Seed_1 = require("../models/Seed");
 const Fork_1 = require("../models/Fork");
 const validators_1 = require("../utils/validators");
+const mlsearch_1 = require("../services/mlsearch");
 async function listSeeds(req, res) {
     const page = Math.max(1, Number(req.query.page || 1));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit || 12)));
@@ -145,6 +146,11 @@ async function createSeed(req, res) {
         });
     }
     catch { }
+    // fire-and-forget embedding
+    const embedText_ = [title, seed.tags?.join(' '), contentSnippet].filter(Boolean).join(' ');
+    (0, mlsearch_1.embedText)(embedText_)
+        .then(embedding => Seed_1.Seed.findByIdAndUpdate(seed._id, { embedding }))
+        .catch(err => console.warn('[embed] seed embedding failed:', err));
     res.status(201).json({ id: seed._id });
 }
 async function updateSeed(req, res) {
